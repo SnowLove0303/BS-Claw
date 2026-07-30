@@ -1,0 +1,45 @@
+# BS-Claw reproducible source delivery
+**/.DS_Store
+**/Thumbs.db
+**/*.tmp
+**/*.bak
+**/*.log
+**/*.pyc
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/
+
+# Credentials and local account material
+**/测试账号.txt
+**/*credential*.txt
+**/*credentials*.json
+
+# Runtime databases and IPC
+**/*.sqlite
+**/*.sqlite3
+**/*.sqlite3-wal
+**/*.sqlite3-shm
+**/sqlite-ipc/
+**/ipc/
+
+# Browser profiles, caches, logs, evidence, and generated runs
+_portmanager-profiles/
+**/browser-profiles/
+**/runtime/
+**/logs/*
+!**/logs/README.md
+**/data/test-runs/
+**/tests/runtime/
+**/tests/data/
+**/audit-evidence/
+**/maintenance-audits/
+**/backups/
+**/data/migrations/backup-*/
+
+# PortManager runtime facts; keep only the empty bootstrap files
+PortManager-Phase1/data/*
+!PortManager-Phase1/data/README.md
+!PortManager-Phase1/data/ports.json
+
+# HuiceLoginAgent never publishes runtime state
+HuiceLoginAgent/data/

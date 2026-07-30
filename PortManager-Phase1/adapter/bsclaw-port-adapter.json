@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 2,
+  "moduleId": "bsclaw.port-manager.huice.phase1",
+  "name": "慧策通端口管理（第一阶段）",
+  "version": "0.4.0",
+  "status": "phase1-promotion-candidate",
+  "entryScript": "port-manager.ps1",
+  "runtime": {
+    "type": "powershell",
+    "minimumVersion": "5.1",
+    "platform": "windows",
+    "workingDirectory": ".",
+    "rootDirectory": ".",
+    "dataDirectory": "./data",
+    "logsDirectory": "./logs",
+    "browserProfilesDirectory": "${BSCLAW_PROFILE_ROOT:-../_portmanager-profiles}",
+    "overrideEnvironmentVariable": "BSCLAW_PM_RUNTIME_ROOT"
+  },
+  "huiceAdapter": {
+    "platformId": "huice",
+    "displayName": "慧策通",
+    "defaultStartUrl": "https://login.huice.com/",
+    "platformUrlPatterns": [
+      "*://huice.com/*",
+      "*://*.huice.com/*",
+      "*://wangdian.cn/*",
+      "*://*.wangdian.cn/*"
+    ],
+    "loginPagePatterns": [
+      "*://login.huice.com/*",
+      "*://*.huice.com/*login*",
+      "*://*.wangdian.cn/*login*",
+      "*登录*"
+    ],
+    "loginEvidencePolicy": "登录页匹配只能证明未登录；只有实时 CDP 同源鉴权续接与只读 API 探针同时成功，才允许标记已登录/API ready。",
+    "browserPolicy": "interactive registration auto-detects or launches Google Chrome only; no alternate browser fallback",
+    "loginDetection": {
+      "states": [
+        "未检测",
+        "未登录",
+        "已登录",
+        "登录状态未知",
+        "检测失败",
+        "登录已失效"
+      ],
+      "loginPagePatterns": [
+        "*://login.huice.com/*",
+        "*://*.huice.com/*login*",
+        "*://*.wangdian.cn/*login*",
+        "*登录*"
+      ],
+      "authenticatedEvidenceRules": [
+        {
+          "id": "huice-live-cdp-storage-and-api-v1",
+          "enabled": true,
+          "requiredStorageKeys": ["v-token", "vToken", "X-HC-TOKEN", "shopId"],
+          "allowedCookieNames": ["X-HC-TOKEN", "v-token", "vToken"],
+          "allowedDomains": [".huice.com", ".huiscm.cn"],
+          "requiresTargetBusinessPage": true,
+          "requiresReadOnlyApiProbe": true
+        }
+      ],
+      "authenticatedEvidenceAvailable": true,
+      "authenticatedEvidenceSource": "HuiceLoginAgent live CDP auth refresh and read-only API probe",
+      "unknownPolicy": "没有真实鉴权证据时保持登录状态未知",
+      "evidenceVersion": "1"
+    }
+  },
+  "interactiveRegistration": {
+    "normalChoices": [
+      "use-running-huice-chrome",
+      "auto-launch-google-chrome"
+    ],
+    "defaultChoice": "use-running-huice-chrome when a verified Huice CDP page exists; otherwise auto-launch-google-chrome",
+    "automaticFields": [
+      "hostName",
+      "port",
+      "connectionMode",
+      "browserExecutable",
+      "browserProfileDirectory",
+      "startUrl",
+      "platformUrlPatterns",
+      "loginPagePatterns",
+      "enabled"
+    ],
+    "optionalFirstRunFields": [
+      "resourceName"
+    ],
+    "advancedOnlyFields": [
+      "hostName",
+      "port",
+      "connectionMode",
+      "browserExecutable",
+      "browserProfileDirectory",
+      "startUrl",
+      "platformUrlPatterns",
+      "loginPagePatterns",
+      "notes"
+    ],
+    "postRegistrationActions": [
+      "open",
+      "check",
+      "return-to-menu"
+    ]
+  },
+  "supportedOperations": [
+    {
+      "name": "List",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Detail",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Register",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Edit",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Enable",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Disable",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Check",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "CheckAll",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "Open",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false,
+      "sideEffects": [
+        "may start a configured browser process",
+        "may create a new browser tab",
+        "may create browser profile files under the configured F drive directory"
+      ]
+    },
+    {
+      "name": "Delete",
+      "riskLevel": "high",
+      "requiresHumanConfirmation": true,
+      "confirmationFormat": "删除 <ResourceId>"
+    },
+    {
+      "name": "Occupancy",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "LoginCheck",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "CancelLoginCheck",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "AcquireLease",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "ReleaseLease",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "HuiceList",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "HuiceCheck",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "HuiceLogin",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false,
+      "interactiveWhenLoginRequired": true
+    },
+    {
+      "name": "CachePlan",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "CleanCache",
+      "riskLevel": "high",
+      "requiresHumanConfirmation": true,
+      "confirmationFormat": "确认清理可再生缓存 <ResourceId>"
+    },
+    {
+      "name": "CreateLoginTestProfile",
+      "riskLevel": "medium",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "ResetLoginPlan",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "DeploymentCleanPlan",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    },
+    {
+      "name": "StorageAudit",
+      "riskLevel": "low",
+      "requiresHumanConfirmation": false
+    }
+  ],
+  "inputs": {
+    "resourceId": {
+      "type": "string",
+      "format": "HCP-XXXXXXXX",
+      "requiredFor": [
+        "Detail",
+        "Edit",
+        "Enable",
+        "Disable",
+        "Check",
+        "Open",
+        "Delete"
+      ]
+    },
+    "register": {
+      "resourceName": "string",
+      "platformName": "string",
+      "hostName": "localhost-or-explicit-private-ip",
+      "port": "integer:1..65535",
+      "connectionMode": "ConnectOnly|Launch",
+      "browserExecutable": "absolute-existing-file",
+      "browserProfileDirectory": "absolute-F-drive-directory",
+      "startUrl": "optional-http-or-https-url",
+      "platformUrlPatterns": "optional-comma-separated-wildcards",
+      "loginPagePatterns": "optional-comma-separated-wildcards",
+      "disabled": "boolean",
+      "notes": "optional-string"
+    }
+  },
+  "output": {
+    "defaultLanguage": "zh-CN",
+    "humanFormat": "Text",
+    "adapterFormat": "Json",
+    "jsonEnvelope": {
+      "success": "boolean",
+      "message": "Chinese result or failure message",
+      "data": "operation-specific object",
+      "nextAction": "one Chinese next action or null",
+      "stdoutPolicy": "exactly one JSON document in Json mode; prompts and tables are forbidden",
+      "failureExitCode": "non-zero"
+    },
+    "statusValues": {
+      "connection": [
+        "不可连接",
+        "端口已监听",
+        "浏览器可连接",
+        "端口冲突",
+        "检测失败"
+      ],
+      "page": [
+        "平台页面正确",
+        "平台页面错误",
+        "未发现页面",
+        "页面状态未知"
+      ],
+      "login": [
+        "未检测",
+        "已登录",
+        "未登录",
+        "登录状态未知",
+        "检测失败",
+        "登录已失效"
+      ],
+      "operation": [
+        "已注册",
+        "已编辑",
+        "检测完成",
+        "检测失败",
+        "打开成功",
+        "打开失败"
+      ]
+    },
+    "occupancyFields": [
+      "currentOccupancy",
+      "currentOccupancyDetails",
+      "ownerProcessIds",
+      "activeLeases"
+    ]
+  },
+  "resourceDataModel": {
+    "schemaVersion": 2,
+    "fields": [
+      "platformId",
+      "credentialRef",
+      "maskedAccountSummary",
+      "loginAutomationState",
+      "sessionPolicy",
+      "lastStatus.loginStatus",
+      "lastStatus.loginEvidence",
+      "lastStatus.loginCheckedAt",
+      "lastStatus.currentOccupancyDetails"
+    ],
+    "credentialPolicy": "credentialRef only; passwords, cookies, tokens and complete authorization headers are forbidden",
+    "autoLoginImplemented": true,
+    "currentStateAuthority": "port_runtime_states",
+    "loginAdapter": "HuiceLoginAgent"
+  },
+  "platformDependencies": [
+    "Windows",
+    "PowerShell 5.1 or later",
+    "real TCP port",
+    "Google Chrome remote debugging endpoint for interactive browser discovery and launch"
+  ],
+  "portDependency": {
+    "selection": "resourceId",
+    "hardCodedPortForbidden": true,
+    "remoteDebuggingProtocol": "Chrome DevTools Protocol HTTP endpoints",
+    "registrationHostPolicy": "localhost, loopback, RFC1918, link-local, or IPv6 ULA explicit IP only",
+    "remoteReadOnlyChecks": true,
+    "remoteCdpControl": false,
+    "openHostPolicy": "loopback-only"
+  },
+  "errorHandling": {
+    "nonZeroExitOnFailure": true,
+    "auditedActions": [
+      "Register",
+      "Edit",
+      "Check",
+      "Open",
+      "Delete"
+    ],
+    "secretsRedacted": true,
+    "rejectEditOrDeleteWhileInUse": true,
+    "recheckUsageInsideWriteLock": true,
+    "persistLatestFailureStatus": true,
+    "cleanupOwnedBrowserOnOpenFailure": true
+  },
+  "bsclawCompatibility": {
+    "target": "future BSClaw plugin loader",
+    "minimumVersion": "0.1.0",
+    "currentIntegration": false,
+    "repositoryCoDelivery": true,
+    "loginAgentDiscovery": "sibling HuiceLoginAgent directory or BSCLAW_HUICE_LOGIN_AGENT_ROOT",
+    "integrationRequirement": "The repository co-delivers both modules. A future BSClaw plugin loader must still map its task, lock, audit, and result contracts to this adapter before loading."
+  }
+}
