@@ -187,15 +187,30 @@ try {
         (Join-Path $projectRoot 'adapter\bsclaw-port-adapter.json'),
         [Text.Encoding]::UTF8
     ) | ConvertFrom-Json
+    $loginAgentRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
+    $httpLoginModuleText = [IO.File]::ReadAllText(
+        (Join-Path $loginAgentRoot 'lib\HuiceLogin.HttpLogin.psm1'),
+        [Text.Encoding]::UTF8
+    )
+    $secureBridgeText = [IO.File]::ReadAllText(
+        (Join-Path $loginAgentRoot 'lib\secure_login_bridge.js'),
+        [Text.Encoding]::UTF8
+    )
     $authBoundaryPassed = (
         @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count -gt 0 -and
         [bool]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable -and
         [bool]$adapter.resourceDataModel.autoLoginImplemented -and
         [string]$adapter.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
-        [string]$adapter.resourceDataModel.credentialPolicy -like '*credentialRef only*'
+        [string]$adapter.resourceDataModel.credentialPolicy -like '*credentialRef only*' -and
+        $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
+        -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
+        $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
+        -not $secureBridgeText.Contains('runLegacyFormLogin') -and
+        -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
+        -not $secureBridgeText.Contains('Input.dispatchMouseEvent')
     )
     Add-LoginRegressionResult -Id 'LS-005' -Name '鉴权规则与自动登录适配器契约' -Passed $authBoundaryPassed -Executed $true -Evidence (
-        "鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；鉴权证据可用=$($adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；适配器=$($adapter.resourceDataModel.loginAdapter)"
+        "鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；鉴权证据可用=$($adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；适配器=$($adapter.resourceDataModel.loginAdapter)；唯一主链=同源HTTP"
     )
 
     $liveEndpoints = @(Get-PMChromeDebugEndpoints -PlatformUrlPatterns @($adapter.huiceAdapter.platformUrlPatterns))

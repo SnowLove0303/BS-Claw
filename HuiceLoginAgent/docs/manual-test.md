@@ -15,4 +15,11 @@ powershell -NoP -EP Bypass -File "$RepoRoot\HuiceLoginAgent\login-agent.ps1" -Ac
 
 通过标准：首次交互登录进入 ERP 并返回 API-ready；Detail 为已登录/high；活动租约为 0；第二次无凭据复用同一端口、Profile 和 Chrome PID。
 
-外部验证码、短信、滑块、二维码或二次确认未自动完成时标记为外部阻断。不要在反馈中提供账号、密码、Token、Cookie 或完整授权头。
+若返回图片验证码、短信、滑块、二维码或二次确认：
+
+1. 只在同一已登记 Chrome 中完成该项外部安全验证。
+2. 不要在 Chrome 重新输入账号或密码，不要点击普通登录表单，不要复制 Token/Cookie。
+3. 完成外部验证后，重新执行同一条交互式 `Login` 命令。
+4. 只有页面进入 ERP 且 API 探针成功才算通过；否则按返回的 errorCode/message 反馈。
+
+2026-07-30 已按最终用户路径完成过一次脱敏实机验收：Read-Host 冷启动登录进入 ERP，refresh/probe 均为 HTTP 200，Detail 为已登录/high/API-ready，活动租约为 0，随后 NonInteractive 调用复用同一端口、Profile 和 Chrome PID。仓库不记录任何凭据值。

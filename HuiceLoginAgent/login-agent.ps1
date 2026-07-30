@@ -26,7 +26,7 @@ function Out-Result {
         success = $Ok
         message = $Message
         data = $Data
-        nextAction = if ($Ok) { '可继续使用当前资源' } elseif ($ErrorCode -eq 'SERVICE_AGREEMENT_CONFIRMATION_REQUIRED') { '确认同意慧策页面显示的服务协议后，使用 -ConfirmServiceAgreement 重新执行登录' } elseif ($ErrorCode -eq 'IMAGE_VERIFICATION_REQUIRED') { '慧策要求图形验证码；当前版本尚未接入验证码续接，不能继续自动登录' } elseif ($ErrorCode -match 'VERIFICATION_REQUIRED') { '当前账号触发慧策安全验证，请按错误码处理后重新执行登录' } elseif ($ErrorCode -eq 'INVALID_CREDENTIALS') { '请检查企业账号、用户账号和密码后重试' } else { '根据错误码处理后重试' }
+        nextAction = if ($Ok) { '可继续使用当前资源' } elseif ($ErrorCode -eq 'CREDENTIAL_INPUT_REQUIRED') { '请去掉 -NonInteractive，在当前 PowerShell 中按提示安全输入后重试' } elseif ($ErrorCode -eq 'SERVICE_AGREEMENT_CONFIRMATION_REQUIRED') { '确认同意慧策页面显示的服务协议后，使用 -ConfirmServiceAgreement 重新执行登录' } elseif ($ErrorCode -eq 'IMAGE_VERIFICATION_REQUIRED') { '请仅在当前登记 Chrome 中完成慧策图形验证，然后重新执行同一 Login 命令；无需复制 Token 或 Cookie' } elseif ($ErrorCode -match 'VERIFICATION_REQUIRED') { '请仅在当前登记 Chrome 中完成慧策要求的外部安全验证，然后重新执行同一 Login 命令' } elseif ($ErrorCode -eq 'INVALID_CREDENTIALS') { '请检查企业账号、用户账号和密码后重试' } else { '根据错误码处理后重试' }
         errorCode = if ($Ok) { $null } else { $ErrorCode }
         resourceId = $ResourceId
     }

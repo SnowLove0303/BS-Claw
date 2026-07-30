@@ -10,7 +10,7 @@ $ResourceId = "<隔离测试资源编号>"
 powershell -NoP -EP Bypass -File "$RepoRoot\HuiceLoginAgent\login-agent.ps1" -Action Login -ResourceId $ResourceId
 ```
 
-`Login` 先实时检查并复用已存在的 ERP 会话或产品选择页。只有真实未登录时才在 PowerShell 读取企业/卖家账号、操作员/用户账号、不回显密码和明确的服务协议确认。凭据只存在于受控内存；数据库不保存密码、Token、Cookie 或完整授权头。
+`Login` 先实时检查并复用已存在的 ERP 会话或产品选择页。只有真实未登录时才在 PowerShell 读取企业/卖家账号、操作员/用户账号、不回显密码和明确的服务协议确认。凭据只存在于受控内存；数据库不保存密码、Token、Cookie 或完整授权头。发布实现只保留同源 HTTP 登录主链，不包含 Chrome 表单填写或点击的竞争实现。
 
 登录成功后，程序进入旺店通 ERP3.0，执行鉴权续接与 goods overview 只读探针；二者都成功才返回 `logged-in-api-ready`。验证码、短信、滑块、二维码或二次确认不能自动完成时必须返回明确阻断，不得伪装成功。
 

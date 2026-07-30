@@ -59,6 +59,8 @@ powershell -NoP -EP Bypass -File "$RepoRoot\HuiceLoginAgent\login-agent.ps1" -Ac
 
 预期：程序通过同一浏览器会话执行同源 HTTP 登录，进入 ERP，鉴权刷新与只读探针成功，最终返回 `success=true` 和 `logged-in-api-ready`。
 
+若出现图片验证码、短信、滑块、二维码或二次确认，只在同一登记 Chrome 中完成该项外部安全验证；不要在 Chrome 重输账号/密码、点击普通登录表单或复制 Token/Cookie。完成后重新执行同一条交互式 Login，程序会继续走同源 HTTP 主链。
+
 ### 5. 验证状态、租约与无凭据复用
 
 ```powershell
@@ -76,3 +78,5 @@ powershell -NoP -EP Bypass -File "$RepoRoot\HuiceLoginAgent\login-agent.ps1" -Ac
 失败：仍停留登录页、出现安全验证错误、API 探针失败、Detail 未同步、活动租约残留、端口/Profile/PID 被替换，或输出混入凭据。
 
 反馈失败时只提供：执行时间、资源编号、非敏感 JSON 错误码与 message、页面主机名、PortManager Detail/Occupancy 输出。不要提供账号、密码、Token、Cookie 或完整授权头。
+
+当前验收基线（2026-07-30）：最终 Read-Host 用户路径已在隔离资源完成冷启动登录并进入 ERP；refresh/probe 均为 HTTP 200，Detail 为已登录/high/API-ready，活动租约为 0，第二次 NonInteractive 调用复用同一端口、Profile 和 Chrome PID。外部验证码/风控是否出现取决于慧策实时策略，出现时按上述人工续接步骤处理。

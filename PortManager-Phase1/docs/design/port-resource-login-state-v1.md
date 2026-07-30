@@ -51,7 +51,7 @@ HuiceLoginAgent 负责：
 3. 若已是 `logged-in-api-ready`，立即复用，不询问凭据、不新开 Profile。
 4. 若停在产品选择页，自动进入“旺店通ERP3.0”，然后执行 API 探针。
 5. 仅在明确登录页状态下读取受控凭据和服务协议确认。
-6. 在该资源现有页面上下文中调用 `HuiceLoginAgent` 的同源 HTTP 登录链路；Chrome 表单自动填写不是正式主链。
+6. 在该资源现有页面上下文中调用 `HuiceLoginAgent` 的同源 HTTP 登录链路；发布实现不包含 Chrome 表单填写或点击的竞争登录实现。
 7. 登录成功后进入 ERP，执行 auth refresh 和 goods overview 只读探针。
 8. 只有登录、ERP 页面、refresh 和必要探针字段全部成功，才返回 `logged-in-api-ready`。
 9. 保存脱敏状态、时间、证据摘要和错误分类；finally 释放租约。

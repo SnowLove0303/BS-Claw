@@ -278,16 +278,16 @@ function Get-PMStatusNextAction {
         return '执行“打开指定慧策通端口”，让程序打开慧策通页面后再检查。'
     }
     if ([string]$Status.loginStatus -eq '未登录') {
-        return '在已打开的 Chrome 中完成慧策通登录，然后重新检查。'
+        return "执行端口管理 HuiceLogin 操作并使用资源 $([string]$Resource.resourceId)；请在 PowerShell 中安全输入，不要在 Chrome 表单中输入。"
     }
     if ([string]$Status.loginStatus -eq '登录已失效') {
-        return '慧策会话已经失效，请重新登录后再次检查。'
+        return "慧策会话已经失效，请对资源 $([string]$Resource.resourceId) 执行端口管理 HuiceLogin 操作。"
     }
     if ([string]$Status.loginStatus -eq '检测失败') {
         return '保留当前错误信息，确认 Chrome 页面稳定后重新检查。'
     }
     if ([string]$Status.loginStatus -eq '登录状态未知') {
-        return '在 Chrome 中确认账号状态；没有真实鉴权证据前程序不会判定为已登录。'
+        return "先对资源 $([string]$Resource.resourceId) 执行实时 Check；若仍需登录，再执行端口管理 HuiceLogin 操作。"
     }
     return '当前检查已完成，可继续使用该资源。'
 }
@@ -312,7 +312,7 @@ function Get-PMErrorNextAction {
         return '确认网络可用，并在 Chrome 中打开慧策通页面后重新检查。'
     }
     if ($Message -match '登录') {
-        return '在 Chrome 中完成慧策通登录，然后重新执行检查。'
+        return '执行端口管理 HuiceLogin 操作，通过 PowerShell 安全输入完成同源 HTTP 登录，然后重新检查。'
     }
     if ($Message -match '超时|不可连接|调试接口') {
         return '确认 Chrome 正在运行后重试；仍失败时重新注册并选择“自动启动 Chrome”。'

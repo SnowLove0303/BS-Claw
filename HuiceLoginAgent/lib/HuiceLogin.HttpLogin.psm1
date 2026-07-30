@@ -79,7 +79,7 @@ function Invoke-HuiceSecureLoginBridge {
     }
 }
 
-function Invoke-HuicePasswordLogin {
+function Invoke-HuiceSameOriginHttpLogin {
     param(
         [Parameter(Mandatory = $true)]$Resource,
         [Parameter(Mandatory = $true)]$Credential,
@@ -94,15 +94,7 @@ function Invoke-HuiceHttpLogin {
         [Parameter(Mandatory = $true)]$Resource,
         [Parameter(Mandatory = $true)]$Credential
     )
-    return Invoke-HuicePasswordLogin -Resource $Resource -Credential $Credential
+    return Invoke-HuiceSameOriginHttpLogin -Resource $Resource -Credential $Credential
 }
 
-function Invoke-HuiceWebFormLogin {
-    param(
-        [Parameter(Mandatory = $true)]$Resource,
-        [Parameter(Mandatory = $true)]$Credential
-    )
-    return Invoke-HuicePasswordLogin -Resource $Resource -Credential $Credential
-}
-
-Export-ModuleMember -Function Invoke-HuiceSecureLoginBridge,Invoke-HuicePasswordLogin,Invoke-HuiceHttpLogin,Invoke-HuiceWebFormLogin
+Export-ModuleMember -Function Invoke-HuiceSecureLoginBridge,Invoke-HuiceSameOriginHttpLogin,Invoke-HuiceHttpLogin

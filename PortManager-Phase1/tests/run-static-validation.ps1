@@ -275,6 +275,12 @@ $loginEntryText = if (Test-Path -LiteralPath $integrationPaths[0] -PathType Leaf
 else {
     ''
 }
+$secureBridgeText = if (Test-Path -LiteralPath $integrationPaths[3] -PathType Leaf) {
+    [IO.File]::ReadAllText($integrationPaths[3], [Text.Encoding]::UTF8)
+}
+else {
+    ''
+}
 $designContractMatches = (
     $designContractText.Contains('authenticatedEvidenceRules：当前为 1 条启用规则') -and
     $designContractText.Contains('autoLoginImplemented：true') -and
@@ -290,14 +296,20 @@ $integrationBoundaryPassed = (
     $enabledEvidenceRules.Count -eq 1 -and
     [bool]$adapterContract.resourceDataModel.autoLoginImplemented -and
     [string]$adapterContract.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
+    $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
     $httpLoginModuleText.Contains('function Invoke-HuiceHttpLogin') -and
+    -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
     $loginEntryText.Contains('Invoke-HuiceHttpLogin') -and
+    $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
+    -not $secureBridgeText.Contains('runLegacyFormLogin') -and
+    -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
+    -not $secureBridgeText.Contains('Input.dispatchMouseEvent') -and
     $designContractMatches
 )
 Add-ValidationResult -Name '同仓库登录适配器与设计文档契约一致性' -Passed $integrationBoundaryPassed -Evidence (
     "仓库根=$repositoryRoot；缺失=$($missingIntegrationPaths -join ',')；启用鉴权规则=$($enabledEvidenceRules.Count)；" +
     "autoLoginImplemented=$($adapterContract.resourceDataModel.autoLoginImplemented)；" +
-    "loginAdapter=$($adapterContract.resourceDataModel.loginAdapter)；同源HTTP实现与文档一致=$designContractMatches"
+    "loginAdapter=$($adapterContract.resourceDataModel.loginAdapter)；同源HTTP唯一主链=$($secureBridgeText.Contains(""loginTransport: 'same-origin-http'""))；实现与文档一致=$designContractMatches"
 )
 
 $summary = [ordered]@{
