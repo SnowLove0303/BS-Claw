@@ -39,7 +39,7 @@
 - Node：2 个 JavaScript 文件通过 `node --check`。
 - Python：SQLite service 通过 AST 与 `py_compile`。
 - 静态验证：8/8；无 Python 配置回归为退出码 2、单行中文提示、stdout 为空、新增运行目录 0。
-- 业务回归：20/20；执行了真实端口冲突、真实浏览器失败回收和真实慧策登录页，但未输入真实凭据。
+- 业务回归：20/20；执行了真实端口冲突、隔离 `about:blank` 页面不匹配后的浏览器/租约回收和真实慧策登录页，但未输入真实凭据。默认回归不访问或展示端口 9 等误导性测试地址。
 - 登录状态回归：10/10；测试后 Chrome 配置进程 0、活动租约 0。
 - 零数据：PortManager List 单一 JSON、资源数 0；SQLite `integrity_check=ok`、schemaVersion 36、活动租约 0。
 - `System` 工作树保持干净；现有 PR #1 保持 OPEN/DRAFT 且未修改。

@@ -452,19 +452,23 @@ Add-RegressionResult -Id 'RG-013' -Name '并发占用保护与展示一致' -Pas
 
 $browserExecutable = Get-PMChromeExecutable
 if ($null -eq $browserExecutable) {
-    Add-RegressionResult -Id 'RG-014' -Name '真实浏览器启动失败后回收' -Passed $false -Requirement 'BF-P1-004/BF-P1-020' -Evidence '现场未找到可用 Google Chrome，未执行且不判定通过；没有改用 Edge。'
+    Add-RegressionResult -Id 'RG-014' -Name '隔离空白页不匹配后失败回收' -Passed $false -Requirement 'BF-P1-004/BF-P1-020' -Evidence '现场未找到可用 Google Chrome，未执行且不判定通过；没有改用 Edge。'
 }
 else {
     $browserPort = Get-UnboundLocalPort
     $browserProfile = Join-Path $runtimeRoot ('browser-profile-' + [Guid]::NewGuid().ToString('N'))
-    $launchRegister = Invoke-PortManagerProcess -Arguments @(
-        '-Action', 'Register', '-ResourceName', '真实浏览器失败回收资源', '-HostName', '127.0.0.1',
-        '-Port', [string]$browserPort, '-ConnectionMode', 'Launch',
-        '-BrowserExecutable', $browserExecutable, '-BrowserProfileDirectory', $browserProfile,
-        '-StartUrl', 'http://127.0.0.1:9/', '-PlatformUrlPatterns', '*://not-huice.invalid/*',
-        '-OutputFormat', 'Json', '-NonInteractive'
-    )
-    $launchId = [string]$launchRegister.Json.data.resourceId
+    # RG-014 直接通过生产资源服务登记空启动页，避免公共注册入口补入慧策
+    # 默认 URL。Chrome 因此只打开 about:blank，不访问任何误导性测试地址。
+    $launchRegister = Register-PMResource `
+        -ResourceName '隔离空白页失败回收资源' `
+        -HostName '127.0.0.1' `
+        -Port $browserPort `
+        -ConnectionMode 'Launch' `
+        -BrowserExecutable $browserExecutable `
+        -BrowserProfileDirectory $browserProfile `
+        -StartUrl $null `
+        -PlatformUrlPatterns @('*://erp.huice.com/*')
+    $launchId = [string]$launchRegister.resourceId
     $launchOpen = Invoke-PortManagerProcess -Arguments @(
         '-Action', 'Open', '-ResourceId', $launchId, '-TimeoutSeconds', '15',
         '-OutputFormat', 'Json', '-NonInteractive'
@@ -485,14 +489,17 @@ else {
     $launchDetail = Invoke-PortManagerProcess -Arguments @(
         '-Action', 'Detail', '-ResourceId', $launchId, '-OutputFormat', 'Json', '-NonInteractive'
     )
-    Add-RegressionResult -Id 'RG-014' -Name '真实浏览器启动失败后回收' -Passed (
-        (Test-JsonEnvelope -Invocation $launchRegister -ExpectedSuccess $true -ExpectedExitCode 0) -and
+    Add-RegressionResult -Id 'RG-014' -Name '隔离空白页不匹配后失败回收' -Passed (
+        $null -ne $launchRegister -and
+        -not [string]::IsNullOrWhiteSpace($launchId) -and
         (Test-JsonEnvelope -Invocation $launchOpen -ExpectedSuccess $false -ExpectedExitCode 1) -and
+        $launchOpen.Json.errorCode -eq 'PM_PAGE_MISMATCH' -and
+        [string]::IsNullOrWhiteSpace([string]$launchDetail.Json.data.startUrl) -and
         @($remainingBrowserProcesses).Count -eq 0 -and
         $launchLeases.Count -eq 0 -and
         $launchDetail.Json.data.lastStatus.operationStatus -eq '打开失败'
     ) -Requirement 'BF-P1-004/BF-P1-020' -Evidence (
-        "浏览器=$browserExecutable；Open退出码=$($launchOpen.ExitCode)；残留进程数=$(@($remainingBrowserProcesses).Count)；租约数=$($launchLeases.Count)；状态=$($launchDetail.Json.data.lastStatus.operationStatus)"
+        "浏览器=$browserExecutable；启动页=about:blank（未登记网络地址）；Open退出码=$($launchOpen.ExitCode)；错误码=$($launchOpen.Json.errorCode)；残留进程数=$(@($remainingBrowserProcesses).Count)；租约数=$($launchLeases.Count)；状态=$($launchDetail.Json.data.lastStatus.operationStatus)"
     )
 }
 
