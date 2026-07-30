@@ -20,6 +20,8 @@ $RepoRoot = "F:\BS-Claw"
 $env:BSCLAW_PYTHON_PATH = "F:\<你的 Python 目录>\python.exe"
 ```
 
+如果未设置且项目内也没有 Python，测试入口只输出一条“BS-Claw 测试与诊断需要 F 盘 Python（含 sqlite3）”提示并以退出码 2 结束；不会下载依赖、修改用户/系统环境变量或创建数据库与测试目录。按上面的当前会话命令设置后重新执行即可。
+
 ## 最短验证流程
 
 ### 1. 查看空库或现有资源

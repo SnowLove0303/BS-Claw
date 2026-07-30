@@ -6,6 +6,15 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$pythonPrerequisitePath = Join-Path $PSScriptRoot 'helpers\Require-FDrivePython.ps1'
+. $pythonPrerequisitePath
+try {
+    $env:BSCLAW_PYTHON_PATH = Resolve-BSClawTestPython -ProjectRoot $projectRoot
+}
+catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 2
+}
 $entryScript = Join-Path $projectRoot 'port-manager.ps1'
 $modulePath = Join-Path $projectRoot 'scripts\lib\PortManager.Core.psm1'
 $huiceModulePath = Join-Path $projectRoot 'scripts\lib\PortManager.Huice.psm1'

@@ -25,6 +25,7 @@
 - B7 部分自动验证、外部边界明确：业务回归 20/20；登录状态回归 10/10，覆盖未登录分类、真实慧策登录页、状态持久化、鉴权规则、租约归零和敏感扫描。真实 Read-Host 账号密码登录未在发布克隆自动执行，必须由用户按 `docs/manual-validation.md` 输入；验证码、短信、滑块、二维码或二次确认若触发，属于明确外部阻断，不能伪造通过。
 - B8 通过：SQLite 的 `login_automation_state` 写入语义改为 `huice-same-origin-http-login`；根入口、内部入口和适配器分别声明 25/25/24 个 Action（适配器不含交互菜单），静态检查确认无缺失或多余。文档统一描述“Read-Host/受控凭据 → 同源 HTTP 登录 → ERP/API 探针 → 状态持久化”。
 - B9 通过：迁入测试只使用隔离运行目录和临时资源，不清理、复制或依赖任何本机正式资源、旧 PID、端口占用或 Profile 缓存。
+- 审计打回修正：当前设计文档已改为运行契约；静态验证同步检查 1 条启用鉴权规则、`autoLoginImplemented=true`、`loginAdapter=HuiceLoginAgent`、同源 HTTP 实现和文档标记。
 
 ## C. 轻量化与最终验收
 
@@ -34,10 +35,10 @@
 
 ## 验证摘要
 
-- PowerShell：43 个 `.ps1/.psm1` 文件语法解析无错误。
+- PowerShell：45 个 `.ps1/.psm1` 文件语法解析无错误。
 - Node：2 个 JavaScript 文件通过 `node --check`。
 - Python：SQLite service 通过 AST 与 `py_compile`。
-- 静态验证：8/8。
+- 静态验证：8/8；无 Python 配置回归为退出码 2、单行中文提示、stdout 为空、新增运行目录 0。
 - 业务回归：20/20；执行了真实端口冲突、真实浏览器失败回收和真实慧策登录页，但未输入真实凭据。
 - 登录状态回归：10/10；测试后 Chrome 配置进程 0、活动租约 0。
 - 零数据：PortManager List 单一 JSON、资源数 0；SQLite `integrity_check=ok`、schemaVersion 36、活动租约 0。

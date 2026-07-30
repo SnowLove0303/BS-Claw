@@ -180,6 +180,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run-login-state-
 回归会在 `data\test-runs` 下创建唯一 F 盘隔离目录，并使用真实 TCP 端口、真实监听进程和现场可用的真实 Google Chrome 验证失败回收；临时 Profile 仍置于独立的 F 盘 Profile 根。登录专项回归会使用测试拥有的 F 盘 Profile 真实打开慧策登录页，并在完成后精确回收本轮 Chrome；不会伪造慧策页面、鉴权证据或登录结果。
 ## 2026-07-29 运行依赖与检测收口
 
-SQLite 服务只接受 F 盘 Python 解释器：优先 `BSCLAW_PYTHON_PATH`，其次项目 `tools\python\python.exe`，最后仅接受 PATH 中实际位于 F 盘的 `python.exe`。若没有 F 盘解释器，程序明确失败，不会使用 C 盘解释器或创建空库。
+SQLite 运行服务只接受 F 盘 Python 解释器。测试和诊断入口只接受当前进程的 `BSCLAW_PYTHON_PATH` 或项目 `tools\python\python.exe`，并在创建测试目录或数据库前验证 `sqlite3` 可导入。若未配置，入口以退出码 2 输出一条可执行中文提示；不会自动下载、使用 C 盘解释器、修改用户/系统环境变量或创建运行数据。
 
 登录检测任务由 SQLite `login_detection_tasks` 唯一记录，状态使用 `running/completed/failed/cancelled`；启动后必须写入真实 worker PID。每个 CLI 操作先执行超时 reaper，超时进程被回收、任务和运行状态收口并写入 SQLite 审计。删除/编辑/打开在检测任务活动期间拒绝；取消会等待进程退出并设置退避时间。

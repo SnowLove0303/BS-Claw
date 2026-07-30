@@ -1,6 +1,6 @@
 ﻿# 迁入发布文件清单
 
-本分支冻结 73 个文件；提交时只精确暂存下列路径，不使用 `git add -A`。
+本分支冻结 75 个文件；提交时只精确暂存下列路径，不使用 `git add -A`。
 
 ```text
 .gitignore
@@ -72,8 +72,10 @@ PortManager-Phase1/scripts/register-port.ps1
 PortManager-Phase1/scripts/sqlite_service.py
 PortManager-Phase1/skill/SKILL.md
 PortManager-Phase1/tests/helpers/hold-resource-lease.ps1
+PortManager-Phase1/tests/helpers/Require-FDrivePython.ps1
 PortManager-Phase1/tests/run-business-regression.ps1
 PortManager-Phase1/tests/run-login-state-regression.ps1
 PortManager-Phase1/tests/run-static-validation.ps1
+PortManager-Phase1/tests/test-python-prerequisite.ps1
 PortManager-Phase1/tests/test-stale-login-lease-recovery.ps1
 ```

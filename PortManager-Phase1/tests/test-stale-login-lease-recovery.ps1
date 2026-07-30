@@ -8,6 +8,15 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$pythonPrerequisitePath = Join-Path $PSScriptRoot 'helpers\Require-FDrivePython.ps1'
+. $pythonPrerequisitePath
+try {
+    $env:BSCLAW_PYTHON_PATH = Resolve-BSClawTestPython -ProjectRoot $projectRoot
+}
+catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 2
+}
 $entryPath = Join-Path $projectRoot 'port-manager.ps1'
 $agentPath = [IO.Path]::GetFullPath((Join-Path $projectRoot '..\HuiceLoginAgent\login-agent.ps1'))
 foreach ($requiredPath in @($entryPath, $agentPath)) {
