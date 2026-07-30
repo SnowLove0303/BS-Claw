@@ -590,6 +590,7 @@ $adapterPassed = (
     [bool]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable -and
     [bool]$adapter.resourceDataModel.autoLoginImplemented -and
     [string]$adapter.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
+    [string]$adapter.resourceDataModel.loginAutomationState -eq 'huice-same-origin-http-login' -and
     $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
     -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
     $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
@@ -600,7 +601,7 @@ $adapterPassed = (
     [string]$adapter.huiceAdapter.browserPolicy -like '*no alternate browser*'
 )
 Add-RegressionResult -Id 'RG-016' -Name '慧策适配默认规则与 Chrome 边界' -Passed $adapterPassed -Requirement 'BF-P1-020/BF-P1-021' -Evidence (
-    "schema=$($adapter.schemaVersion)；版本=$($adapter.version)；默认页=$($adapter.huiceAdapter.defaultStartUrl)；平台规则数=$(@($adapter.huiceAdapter.platformUrlPatterns).Count)；登录规则数=$(@($adapter.huiceAdapter.loginPagePatterns).Count)；状态数=$(@($adapter.huiceAdapter.loginDetection.states).Count)；鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；唯一主链=同源HTTP；策略=$($adapter.huiceAdapter.browserPolicy)"
+    "schema=$($adapter.schemaVersion)；版本=$($adapter.version)；默认页=$($adapter.huiceAdapter.defaultStartUrl)；平台规则数=$(@($adapter.huiceAdapter.platformUrlPatterns).Count)；登录规则数=$(@($adapter.huiceAdapter.loginPagePatterns).Count)；状态数=$(@($adapter.huiceAdapter.loginDetection.states).Count)；鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；loginAutomationState=$($adapter.resourceDataModel.loginAutomationState)；唯一主链=同源HTTP；策略=$($adapter.huiceAdapter.browserPolicy)"
 )
 
 $defaultRuntimeRoot = $projectRoot

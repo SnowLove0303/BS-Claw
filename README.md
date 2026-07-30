@@ -11,4 +11,6 @@
 
 仓库不包含账号、密码、Token、Cookie、Credential 实值、SQLite 运行库、真实端口数据、Chrome Profile、缓存、日志、测试运行产物或审计证据。
 
+当前慧策登录自动化状态的唯一正式枚举为 `huice-same-origin-http-login`。适配器、SQLite 写入、测试和设计文档必须保持同名。
+
 用户验证见 [docs/manual-validation.md](docs/manual-validation.md)，迁入审计见 [docs/portmanager-login-migration-audit.md](docs/portmanager-login-migration-audit.md)。

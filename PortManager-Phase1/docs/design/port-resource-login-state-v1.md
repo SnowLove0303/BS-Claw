@@ -9,7 +9,8 @@
 - authenticatedEvidenceRules：当前为 1 条启用规则。
 - autoLoginImplemented：true。
 - loginAdapter：HuiceLoginAgent。
-- loginAutomationState：huice-same-origin-http-login。
+- loginAutomationState：`huice-same-origin-http-login`；这是唯一正式枚举，禁止使用无平台前缀的同义值。
+- loginTransport：`same-origin-http` 只表示单次桥接响应采用的传输方式，不是持久化枚举，禁止将其写入 `loginAutomationState`。
 - 当前状态真源：SQLite `port_runtime_states`。
 
 ## 一、模块边界

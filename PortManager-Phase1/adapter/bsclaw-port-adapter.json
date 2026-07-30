@@ -327,6 +327,7 @@
     ],
     "credentialPolicy": "credentialRef only; passwords, cookies, tokens and complete authorization headers are forbidden",
     "autoLoginImplemented": true,
+    "loginAutomationState": "huice-same-origin-http-login",
     "currentStateAuthority": "port_runtime_states",
     "loginAdapter": "HuiceLoginAgent"
   },

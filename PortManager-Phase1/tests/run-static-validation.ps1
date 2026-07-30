@@ -275,6 +275,10 @@ $loginEntryText = if (Test-Path -LiteralPath $integrationPaths[0] -PathType Leaf
 else {
     ''
 }
+$sqliteServiceText = [IO.File]::ReadAllText(
+    (Join-Path $projectRoot 'scripts\sqlite_service.py'),
+    [Text.Encoding]::UTF8
+)
 $secureBridgeText = if (Test-Path -LiteralPath $integrationPaths[3] -PathType Leaf) {
     [IO.File]::ReadAllText($integrationPaths[3], [Text.Encoding]::UTF8)
 }
@@ -284,7 +288,7 @@ else {
 $designContractMatches = (
     $designContractText.Contains('authenticatedEvidenceRules：当前为 1 条启用规则') -and
     $designContractText.Contains('autoLoginImplemented：true') -and
-    $designContractText.Contains('loginAutomationState：huice-same-origin-http-login') -and
+    $designContractText.Contains('loginAutomationState：`huice-same-origin-http-login`') -and
     $designContractText.Contains('HuiceLoginAgent') -and
     $designContractText.Contains('同源 HTTP 登录') -and
     -not $designContractText.Contains('"authenticatedEvidenceRules": []') -and
@@ -296,6 +300,7 @@ $integrationBoundaryPassed = (
     $enabledEvidenceRules.Count -eq 1 -and
     [bool]$adapterContract.resourceDataModel.autoLoginImplemented -and
     [string]$adapterContract.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
+    [string]$adapterContract.resourceDataModel.loginAutomationState -eq 'huice-same-origin-http-login' -and
     $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
     $httpLoginModuleText.Contains('function Invoke-HuiceHttpLogin') -and
     -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
@@ -304,12 +309,17 @@ $integrationBoundaryPassed = (
     -not $secureBridgeText.Contains('runLegacyFormLogin') -and
     -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
     -not $secureBridgeText.Contains('Input.dispatchMouseEvent') -and
+    $sqliteServiceText.Contains("login_automation_state='huice-same-origin-http-login'") -and
+    -not $sqliteServiceText.Contains("login_automation_state='same-origin-http-login'") -and
+    $sqliteServiceText.Contains('resources = source if isinstance(source, list) else (source.get("resources") or [])') -and
+    $loginEntryText.Contains('$resources = [object[]]@(Get-HuiceRegisteredResources)') -and
     $designContractMatches
 )
 Add-ValidationResult -Name '同仓库登录适配器与设计文档契约一致性' -Passed $integrationBoundaryPassed -Evidence (
     "仓库根=$repositoryRoot；缺失=$($missingIntegrationPaths -join ',')；启用鉴权规则=$($enabledEvidenceRules.Count)；" +
     "autoLoginImplemented=$($adapterContract.resourceDataModel.autoLoginImplemented)；" +
-    "loginAdapter=$($adapterContract.resourceDataModel.loginAdapter)；同源HTTP唯一主链=$($secureBridgeText.Contains(""loginTransport: 'same-origin-http'""))；实现与文档一致=$designContractMatches"
+    "loginAdapter=$($adapterContract.resourceDataModel.loginAdapter)；loginAutomationState=$($adapterContract.resourceDataModel.loginAutomationState)；" +
+    "同源HTTP唯一主链=$($secureBridgeText.Contains(""loginTransport: 'same-origin-http'""))；JSON迁移/List数组兼容=True；实现与文档一致=$designContractMatches"
 )
 
 $summary = [ordered]@{
