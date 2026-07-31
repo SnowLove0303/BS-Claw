@@ -232,16 +232,35 @@ $requiredPaths = @(
     'tests\run-business-regression.ps1',
     'tests\run-login-state-regression.ps1',
     'tests\run-static-validation.ps1',
-    'tests\test-python-prerequisite.ps1'
+    'tests\test-python-prerequisite.ps1',
+    'install-bsclaw-command.ps1',
+    'tools\command-launcher\BS.cmd',
+    'tools\command-launcher\bsclaw.cmd',
+    'tools\command-launcher\Invoke-BSClaw.ps1',
+    'docs\command-launcher.md'
 )
 $missingPaths = @($requiredPaths | Where-Object { -not (Test-Path -LiteralPath (Join-Path $projectRoot $_)) })
-$pathEvidence = if ($missingPaths.Count -eq 0) {
-    "$($requiredPaths.Count) 个必需路径均存在。"
+$launcherContractErrors = @()
+if ($missingPaths.Count -eq 0) {
+    $bsCommandText = Get-Content -LiteralPath (Join-Path $projectRoot 'tools\command-launcher\BS.cmd') -Raw
+    $launcherText = Get-Content -LiteralPath (Join-Path $projectRoot 'tools\command-launcher\Invoke-BSClaw.ps1') -Raw
+    if ($bsCommandText -notmatch '(?i)%~1.*Claw') {
+        $launcherContractErrors += 'BS.cmd 未校验 Claw 参数'
+    }
+    if ($launcherText -notmatch [regex]::Escape("Join-Path `$PSScriptRoot '..\..'")) {
+        $launcherContractErrors += '启动器未按相对路径发现模块根目录'
+    }
+    if ($launcherText -notmatch [regex]::Escape("'port-manager.ps1'")) {
+        $launcherContractErrors += '启动器未调用正式根入口'
+    }
+}
+$pathEvidence = if ($missingPaths.Count -eq 0 -and $launcherContractErrors.Count -eq 0) {
+    "$($requiredPaths.Count) 个必需路径均存在，快捷启动器契约有效。"
 }
 else {
-    "缺失：$($missingPaths -join '、')"
+    "缺失：$($missingPaths -join '、')；契约问题：$($launcherContractErrors -join '、')"
 }
-Add-ValidationResult -Name '交付目录与入口完整性' -Passed ($missingPaths.Count -eq 0) -Evidence $pathEvidence
+Add-ValidationResult -Name '交付目录与入口完整性' -Passed ($missingPaths.Count -eq 0 -and $launcherContractErrors.Count -eq 0) -Evidence $pathEvidence
 
 $repositoryRoot = [IO.Path]::GetFullPath((Split-Path $projectRoot -Parent))
 $loginAgentRoot = Join-Path $repositoryRoot 'HuiceLoginAgent'
