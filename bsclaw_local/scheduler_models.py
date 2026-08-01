@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+
+STATE_CREATED = "已创建"
+STATE_PREFLIGHT = "预检中"
+STATE_WAITING_MANUAL = "等待人工处理"
+STATE_RUNNING = "执行中"
+STATE_WAITING_VERIFY = "等待回查"
+STATE_SUCCEEDED = "成功"
+STATE_FAILED = "失败"
+STATE_CANCELLED = "已取消"
+STATE_TIMED_OUT = "超时"
+STATE_UNVERIFIED = "未验证"
+STATE_BLOCKED = "阻断"
+
+TASK_STATES = (
+    STATE_CREATED,
+    STATE_PREFLIGHT,
+    STATE_WAITING_MANUAL,
+    STATE_RUNNING,
+    STATE_WAITING_VERIFY,
+    STATE_SUCCEEDED,
+    STATE_FAILED,
+    STATE_CANCELLED,
+    STATE_TIMED_OUT,
+    STATE_UNVERIFIED,
+    STATE_BLOCKED,
+)
+
+TERMINAL_STATES = {
+    STATE_SUCCEEDED,
+    STATE_FAILED,
+    STATE_CANCELLED,
+    STATE_TIMED_OUT,
+    STATE_UNVERIFIED,
+    STATE_BLOCKED,
+}
+
+ALLOWED_TRANSITIONS = {
+    STATE_CREATED: {
+        STATE_PREFLIGHT,
+        STATE_CANCELLED,
+        STATE_TIMED_OUT,
+        STATE_BLOCKED,
+    },
+    STATE_PREFLIGHT: {
+        STATE_WAITING_MANUAL,
+        STATE_RUNNING,
+        STATE_BLOCKED,
+        STATE_FAILED,
+        STATE_CANCELLED,
+        STATE_TIMED_OUT,
+    },
+    STATE_WAITING_MANUAL: {
+        STATE_PREFLIGHT,
+        STATE_CANCELLED,
+        STATE_TIMED_OUT,
+        STATE_BLOCKED,
+    },
+    STATE_RUNNING: {
+        STATE_WAITING_MANUAL,
+        STATE_WAITING_VERIFY,
+        STATE_SUCCEEDED,
+        STATE_FAILED,
+        STATE_CANCELLED,
+        STATE_TIMED_OUT,
+        STATE_UNVERIFIED,
+    },
+    STATE_WAITING_VERIFY: {
+        STATE_SUCCEEDED,
+        STATE_FAILED,
+        STATE_CANCELLED,
+        STATE_TIMED_OUT,
+        STATE_UNVERIFIED,
+        STATE_WAITING_MANUAL,
+    },
+    STATE_FAILED: {STATE_PREFLIGHT},
+    STATE_TIMED_OUT: {STATE_PREFLIGHT},
+    STATE_BLOCKED: {STATE_PREFLIGHT},
+    STATE_UNVERIFIED: set(),
+    STATE_SUCCEEDED: set(),
+    STATE_CANCELLED: set(),
+}
+
+
+def parse_iso(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None

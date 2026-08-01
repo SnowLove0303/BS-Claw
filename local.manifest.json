@@ -1,0 +1,26 @@
+{
+  "id": "bsclaw-local",
+  "name": "BS Claw 统一调度模块",
+  "version": "0.2.0",
+  "entry": "bsclaw.py",
+  "runtime": "python-stdlib",
+  "publicCommands": [
+    "menu",
+    "status",
+    "resources",
+    "huice",
+    "modules",
+    "diagnose",
+    "audit",
+    "tasks",
+    "task",
+    "port-manager"
+  ],
+  "businessWritesEnabled": false,
+  "uiEnabled": false,
+  "resourcePolicyStatus": "pending-user-decision",
+  "moduleManifestNames": [
+    "bsclaw.module.json",
+    "module.manifest.json"
+  ]
+}

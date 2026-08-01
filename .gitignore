@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+data/scheduler/
+data/command-backups/
+data/tasks.jsonl
+data/*.jsonl
+data/python-bootstrap/
+runtime/
+logs/
+/tools/python/
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

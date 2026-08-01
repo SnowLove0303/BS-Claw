@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "port-manager",
+  "name": "端口管理服务",
+  "version": "1.0.0",
+  "type": "resource-service",
+  "riskLevel": "low",
+  "businessWritesEnabled": false,
+  "writesServiceState": true,
+  "entry": {
+    "runtime": "python",
+    "path": "port_manager_service_adapter.py"
+  },
+  "externalService": {
+    "environmentVariable": "BSCLAW_PORT_MANAGER_ROOT",
+    "siblingDirectory": "PortManager-Phase1",
+    "publicEntry": "port-manager.ps1",
+    "outputFormat": "single-json-document"
+  },
+  "prohibitedDirectAccess": [
+    "PortManager PowerShell internal PSM1 functions",
+    "PortManager SQLite database",
+    "PortManager runtime state files",
+    "browser Profile files",
+    "credentials and browser storage"
+  ],
+  "actions": [
+    {
+      "id": "service-check",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": false,
+      "resourcePolicy": "none",
+      "timeoutSeconds": 90,
+      "inputSchema": {},
+      "resultCheck": {
+        "mode": "plugin",
+        "action": "service-check"
+      }
+    },
+    {
+      "id": "list-resources",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": false,
+      "resourcePolicy": "none",
+      "timeoutSeconds": 90,
+      "inputSchema": {},
+      "resultCheck": {
+        "mode": "plugin",
+        "action": "list-resources"
+      }
+    },
+    {
+      "id": "resource-detail",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": false,
+      "resourcePolicy": "none",
+      "timeoutSeconds": 90,
+      "inputSchema": {
+        "resourceId": "task.resource.resourceId"
+      },
+      "resultCheck": {
+        "mode": "plugin",
+        "action": "resource-detail"
+      }
+    },
+    {
+      "id": "check-resource",
+      "mode": "service-state-write",
+      "writeLevel": "service-state-write",
+      "requiresHuiceResource": false,
+      "resourcePolicy": "none",
+      "timeoutSeconds": 90,
+      "inputSchema": {
+        "resourceId": "task.resource.resourceId"
+      },
+      "resultCheck": {
+        "mode": "result-contract",
+        "requiredFields": ["resource"]
+      }
+    },
+    {
+      "id": "storage-plan",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": false,
+      "resourcePolicy": "none",
+      "timeoutSeconds": 180,
+      "inputSchema": {
+        "resourceId": "optional task.resource.resourceId"
+      },
+      "resultCheck": {
+        "mode": "result-contract",
+        "requiredFields": [
+          "executeMode",
+          "readOnly",
+          "totals"
+        ],
+        "expected": {
+          "executeMode": "dry-run",
+          "readOnly": true
+        }
+      }
+    }
+  ],
+  "userInterface": {
+    "section": "local-services",
+    "summary": "管理本机端口资源、登录状态和可复用浏览器环境"
+  },
+  "capabilities": [
+    {
+      "id": "service-check",
+      "action": "service-check",
+      "displayName": "检查端口服务",
+      "category": "检查",
+      "writeLevel": "pure-read",
+      "requiresResourceSelection": false,
+      "requiresLoginGate": false,
+      "requiresConfirmation": false,
+      "progressText": "正在检查端口服务",
+      "successResultView": "service-summary",
+      "failureNextAction": "检查端口管理安装和 Python 环境",
+      "retryable": true,
+      "cancellable": true,
+      "recoverable": true,
+      "dispatch": "scheduler"
+    },
+    {
+      "id": "list-resources",
+      "action": "list-resources",
+      "displayName": "查看端口资源",
+      "category": "查看",
+      "writeLevel": "pure-read",
+      "requiresResourceSelection": false,
+      "requiresLoginGate": false,
+      "requiresConfirmation": false,
+      "progressText": "正在读取端口资源",
+      "successResultView": "resource-list",
+      "failureNextAction": "检查端口管理服务后重试",
+      "retryable": true,
+      "cancellable": true,
+      "recoverable": true,
+      "dispatch": "scheduler"
+    },
+    {
+      "id": "resource-detail",
+      "action": "resource-detail",
+      "displayName": "查看资源详情",
+      "category": "查看",
+      "writeLevel": "pure-read",
+      "requiresResourceSelection": true,
+      "requiresLoginGate": false,
+      "requiresConfirmation": false,
+      "progressText": "正在读取资源详情",
+      "successResultView": "resource-detail",
+      "failureNextAction": "返回资源列表并重试",
+      "retryable": true,
+      "cancellable": true,
+      "recoverable": true,
+      "dispatch": "scheduler"
+    },
+    {
+      "id": "check-resource",
+      "action": "check-resource",
+      "displayName": "重新检查状态",
+      "category": "检查",
+      "writeLevel": "service-state-write",
+      "requiresResourceSelection": true,
+      "requiresLoginGate": false,
+      "requiresConfirmation": false,
+      "progressText": "正在检查连接、页面和登录状态",
+      "successResultView": "resource-detail",
+      "failureNextAction": "按提示完成登录或修复连接后重试",
+      "retryable": true,
+      "cancellable": true,
+      "recoverable": true,
+      "dispatch": "scheduler"
+    },
+    {
+      "id": "storage-plan",
+      "action": "storage-plan",
+      "displayName": "查看存储情况",
+      "category": "维护",
+      "writeLevel": "pure-read",
+      "requiresResourceSelection": true,
+      "requiresLoginGate": false,
+      "requiresConfirmation": false,
+      "progressText": "正在盘点存储，Profile 较大时可能需要几十秒",
+      "successResultView": "storage-summary",
+      "failureNextAction": "稍后重试或检查 Profile 路径",
+      "retryable": true,
+      "cancellable": true,
+      "recoverable": true,
+      "dispatch": "scheduler"
+    },
+    {
+      "id": "open-resource",
+      "action": "open-resource",
+      "displayName": "打开或复用资源",
+      "category": "打开",
+      "writeLevel": "service-state-write",
+      "requiresResourceSelection": true,
+      "requiresLoginGate": false,
+      "requiresConfirmation": true,
+      "confirmationText": "确认打开或复用该资源",
+      "progressText": "正在打开或复用资源",
+      "successResultView": "resource-detail",
+      "failureNextAction": "检查端口占用和浏览器状态后重试",
+      "retryable": true,
+      "cancellable": false,
+      "recoverable": true,
+      "dispatch": "public-command"
+    },
+    {
+      "id": "login-resource",
+      "action": "login-resource",
+      "displayName": "正式登录",
+      "category": "登录",
+      "writeLevel": "service-state-write",
+      "requiresResourceSelection": true,
+      "requiresLoginGate": false,
+      "requiresConfirmation": true,
+      "confirmationText": "确认进入正式登录流程",
+      "progressText": "正在进入正式登录流程",
+      "successResultView": "resource-detail",
+      "failureNextAction": "按提示完成登录或安全验证",
+      "retryable": true,
+      "cancellable": false,
+      "recoverable": true,
+      "dispatch": "public-command"
+    }
+  ]
+}
