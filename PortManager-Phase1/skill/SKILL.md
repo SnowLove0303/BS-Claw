@@ -1,4 +1,4 @@
-﻿---
+---
 name: bsclaw-huice-port-manager-phase1
 description: Use the standalone BSClaw phase-one PowerShell port manager to register, inspect, check, enable, disable, open, or delete a real Huice Chromium debugging port by resource ID.
 ---
@@ -7,9 +7,9 @@ description: Use the standalone BSClaw phase-one PowerShell port manager to regi
 
 ## 使用边界
 
-本 Skill 只调用 `F:\BS-Claw\PortManager-Phase1` 的独立 PowerShell 程序。
+本 Skill 只调用 `F:\XIANGMU\BS Claw\PortManager-Phase1` 的独立 PowerShell 程序。
 
-- 不修改或假定存在仓库中的 `System/` 应用壳。
+- 不修改 `F:\XIANGMU\BS Claw\System`。
 - 不直接写死端口号；先取得 `HCP-XXXXXXXX` 资源编号。
 - 不读取或保存 Cookie、Token、密码、授权头或浏览器存储。
 - 不执行商品、订单、库存、铺货、价格、售后或其他慧策业务动作。
@@ -31,25 +31,25 @@ description: Use the standalone BSClaw phase-one PowerShell port manager to regi
 查看：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action List -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action List -OutputFormat Json -NonInteractive
 ```
 
 检测：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
 ```
 
 打开：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
 ```
 
 交互注册：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Register
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Register
 ```
 
 交互注册使用业务向导：先自动发现已打开的慧策通 Chrome；未发现时默认自动启动 Google Chrome。端口、Chrome 路径、F 盘配置目录、慧策页面和识别规则由程序自动处理，资源名称可直接回车。注册后程序自动检查，并让用户选择立即打开、再次检查或返回菜单。只有用户明确选择“高级设置”时才输入技术字段。

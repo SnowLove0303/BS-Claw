@@ -2,13 +2,15 @@
 
 ## 一、功能定义
 
-本项目是在 BSClaw 主系统之外运行的独立 PowerShell 端口管理程序。它通过资源编号管理真实主机地址、真实端口、浏览器启动配置和最近检测状态，并能连接已有 Chromium 调试端口，或按登记配置启动浏览器后进行真实回查。
+本项目是在 BSClaw 主系统之外运行的独立 PowerShell 端口管理程序。用户通过列表序号选择资源；程序内部使用资源编号关联真实主机地址、真实端口、浏览器启动配置和最近检测状态。机器接口仍可接收 `-ResourceId`，但普通菜单不要求用户输入或复制它。
 
-本模块与 `HuiceLoginAgent` 作为同一 BS-Claw 仓库交付，但尚未接入 Electron UI、完整插件加载器或统一调度器。PortManager SQLite 是资源、租约、审计和当前状态真源。
+端口管理仓库的发布边界只包含端口管理自身。`BSClaw-Local` 统一调度层及其 `bsclaw` / `BS Claw` 启动器属于独立本地层，不进入端口管理发布候选；端口管理仅通过根入口 JSON 契约供其适配调用。
+
+本项目没有接入 `F:\XIANGMU\BS Claw\System`，也没有创建 BSClaw API、数据库、插件注册表或任务队列。
 
 ## 二、功能意义
 
-业务脚本和未来插件只引用 `HCP-XXXXXXXX` 格式的资源编号，不直接写死端口号。端口、浏览器程序、F 盘浏览器配置目录、页面规则和状态检测集中保存，便于未来由 BSClaw 统一接管资源、任务、确认和审计。
+业务脚本和未来插件只通过内部适配器引用资源编号，不直接写死端口号。端口、浏览器程序、F 盘浏览器配置目录、页面规则和状态检测集中保存，便于未来由 BSClaw 统一接管资源、任务、确认和审计。
 
 ## 三、功能作用
 
@@ -30,7 +32,7 @@
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1"
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1"
 ```
 
 普通用户首次注册只需要：
@@ -60,29 +62,38 @@ powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1
 常用命令：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action List
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Register
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Detail -ResourceId HCP-XXXXXXXX
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action CheckAll
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action StorageAudit -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action List
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Register
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Detail -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action CheckAll
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action StorageAudit -OutputFormat Json -NonInteractive
 ```
+
+`StorageAudit` 不删除文件，但会追加一条脱敏审计记录。供统一调度等外部适配器使用的无写入入口：
+
+```powershell
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action ServiceCheck -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action StoragePlan -ResourceId HCP-E1880AE9 -OutputFormat Json -NonInteractive
+```
+
+两条动作均不追加 PortManager 审计、不改变 SQLite、不清理 Profile。
 
 清理与登录重测命令均使用绝对路径，不依赖当前工作目录：
 
 ```powershell
 # 只预览，不删除
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action CachePlan -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action CachePlan -ResourceId HCP-E1880AE9 -OutputFormat Json -NonInteractive
 
 # 只清理可再生缓存，不用于退出登录；必须先关闭对应 Chrome
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action CleanCache -ResourceId HCP-XXXXXXXX -ConfirmationText "确认清理可再生缓存 HCP-XXXXXXXX" -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action CleanCache -ResourceId HCP-E1880AE9 -ConfirmationText "确认清理可再生缓存 HCP-E1880AE9" -OutputFormat Json -NonInteractive
 
 # 创建独立端口和空白 Profile，用于重新测试完整 Login
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action CreateLoginTestProfile -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action CreateLoginTestProfile -ResourceId HCP-E1880AE9 -OutputFormat Json -NonInteractive
 
 # 只输出跨机器部署前的保留、可清理和重建建议
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action DeploymentCleanPlan -ResourceId HCP-XXXXXXXX -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action DeploymentCleanPlan -ResourceId HCP-E1880AE9 -OutputFormat Json -NonInteractive
 ```
 
 `CreateLoginTestProfile` 不复制密码、Token、Cookie 或浏览器会话。`ResetLoginPlan` 只输出风险说明；本阶段不删除正式资源认证状态。
@@ -90,9 +101,9 @@ powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1
 未来适配层可使用中文消息的 JSON 信封：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action List -OutputFormat Json -NonInteractive
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Edit -ResourceId HCP-XXXXXXXX -ResourceName '新名称' -OutputFormat Json -NonInteractive
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Delete -ResourceId HCP-XXXXXXXX -ConfirmationText '删除 HCP-XXXXXXXX' -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action List -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Edit -ResourceId HCP-XXXXXXXX -ResourceName '新名称' -OutputFormat Json -NonInteractive
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Delete -ResourceId HCP-XXXXXXXX -ConfirmationText '删除 HCP-XXXXXXXX' -OutputFormat Json -NonInteractive
 ```
 
 `Json` 模式的标准输出严格只有一个 JSON 文档；不会输出提示、详情表格或确认文本。失败时仍返回相同信封，进程退出码为非零。机器编辑必须提供至少一个修改参数，机器删除必须提供确认文本。
@@ -134,9 +145,9 @@ PortManager 本身不持久化 Cookie、Token、密码或完整授权头。慧�
 - 操作审计：SQLite `audit_records`（兼容导出：`data\audit.jsonl`）
 - 短期操作租约：SQLite `resource_leases`
 - 脱敏日志：`logs\port-manager.log`
-- 自动创建的 Chrome 配置：`F:\BS-Claw\_portmanager-profiles`
+- 自动创建的 Chrome 配置：`F:\XIANGMU\BS Claw\_portmanager-profiles`
 
-当前阶段端口资源、状态、租约、审计和测试记录统一写入 `F:\BS-Claw\PortManager-Phase1\data`；自动回归通过进程级环境变量 `BSCLAW_PM_RUNTIME_ROOT` 指向 `data\test-runs` 下的 F 盘隔离目录，该变量只影响当前进程及其子进程。
+当前阶段端口资源、状态、租约、审计和测试记录统一写入 `F:\XIANGMU\BS Claw\PortManager-Phase1\data`；自动回归通过进程级环境变量 `BSCLAW_PM_RUNTIME_ROOT` 指向 `data\test-runs` 下的 F 盘隔离目录，该变量只影响当前进程及其子进程。
 
 备份与恢复 SQLite：
 
@@ -159,12 +170,12 @@ Test-PMSqliteIntegrity
 
 ## 九、当前完成边界
 
-代码已实现独立执行路径、统一根入口、真实状态复用和推广前体积审计。历史本机资源验证不作为仓库发布事实。迁入后的完整冷启动 Login 必须由用户在独立登录测试资源按仓库根目录 `docs/manual-validation.md` 复验；自动化只覆盖不需要真实凭据的部分，不得将未执行场景描述为通过。
+代码已实现独立执行路径、统一根入口、真实状态复用和推广前体积审计。当前正式资源 `HCP-E1880AE9` 已实际验证会话复用、鉴权续接、只读 API 探针、PortManager 状态同步、租约收口和 SQLite 重启回读。用户重新输入企业账号、用户账号和不回显密码的完整 Login 仍需由用户在独立登录测试资源上复验；不得将该未执行场景描述为通过。
 ## 十、SQLite 运行时真源（2026-07-28）
 
 端口配置、运行状态、登录检测历史、资源租约和可查询审计记录的唯一运行时真源是：
 
-`F:\BS-Claw\PortManager-Phase1\data\port-manager.sqlite3`
+`F:\XIANGMU\BS Claw\PortManager-Phase1\data\port-manager.sqlite3`
 
 SQLite 由 `scripts\sqlite_service.py`（Python 标准库 sqlite3）提供统一访问，PowerShell 模块 `scripts\lib\PortManager.Sqlite.psm1` 是唯一调用入口。数据库启用外键、WAL 和 10 秒 busy timeout；写入通过事务完成。核心表为 `schema_migrations`、`port_resources`、`port_runtime_states`、`login_state_checks`、`login_detection_tasks`、`resource_leases`、`audit_records`、`deleted_resource_history`、`credential_profiles` 与 `login_session_events`，当前 schema migration 为 36，启动会校验 migration checksum。
 

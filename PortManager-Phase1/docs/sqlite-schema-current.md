@@ -1,6 +1,6 @@
 ﻿# SQLite 当前契约（2026-07-29）
 
-运行数据库位于模块根目录 `data\port-manager.sqlite3`，当前 schemaVersion 为 **36**。启动时校验 `schema_migrations` checksum；不一致时停止写入。数据库运行文件不进入 Git。
+正式数据库为 `F:\XIANGMU\BS Claw\PortManager-Phase1\data\port-manager.sqlite3`，当前 schemaVersion 为 **36**。启动时校验 `schema_migrations` checksum；不一致时停止写入。
 
 状态边界：
 
@@ -19,3 +19,4 @@
 迁移到新机器后必须重新发现 Chrome 路径、端口占用、PID、Watcher 和登录状态新鲜度，并重新执行 API 探针。需要复用登录态时，单独受控迁移对应 Profile 的非缓存数据；通用发布包不得包含真实 Profile 或秘密。
 
 当前已验证：`PRAGMA integrity_check=ok`、schemaVersion=36、正式资源状态回读、兼容投影一致和活动租约收口。未由开发代替用户执行：重新输入真实账号密码的完整 Login。
+

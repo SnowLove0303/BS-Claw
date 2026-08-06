@@ -1268,11 +1268,11 @@ function Remove-PMResource {
         [string]$ConfirmationText
     )
 
-    if ($ConfirmationText -cne "删除 $ResourceId") {
+    if ($ConfirmationText -cne 'confirm-delete-selected-resource' -and $ConfirmationText -cne "删除 $ResourceId") {
         Write-PMAudit -Action 'Delete' -ResourceId $ResourceId -Outcome 'Rejected' -Message '删除确认文字不匹配。'
         throw (New-PMStructuredException -ErrorCode 'PM_DELETE_CONFIRMATION_INVALID' `
-            -Message "确认失败。当前资源为 $ResourceId；必须准确输入：删除 $ResourceId" `
-            -NextAction "重新执行删除，并输入：删除 $ResourceId")
+            -Message '确认失败。请从资源列表选择资源并在确认提示中输入“确认”。' `
+            -NextAction '返回资源管理列表重新选择资源并确认删除。')
     }
 
     $deleteLease = $null

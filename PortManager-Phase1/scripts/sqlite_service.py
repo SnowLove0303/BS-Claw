@@ -190,7 +190,7 @@ def migrate(db_path, json_path, backup_dir):
         if count == 0 and os.path.isfile(json_path):
             with open(json_path, "r", encoding="utf-8-sig") as f:
                 source = json.load(f)
-            resources = source if isinstance(source, list) else (source.get("resources") or [])
+            resources = source.get("resources") or []
             if resources:
                 Path(backup_dir).mkdir(parents=True, exist_ok=True)
                 backup = Path(backup_dir) / (Path(json_path).stem + ".migration-" + dt.datetime.now().strftime("%Y%m%d-%H%M%S") + ".json")
@@ -537,11 +537,11 @@ def record_login_runtime(db, payload):
             (credential_ref, resource_id, credential_type or "terminal-secure-input", masked_summary, now(), now()))
         db.execute(
             """UPDATE port_resources SET credential_ref=?,masked_account_summary=?,
-               login_automation_state='huice-same-origin-http-login',updated_at=? WHERE resource_id=?""",
+               login_automation_state='same-origin-http-login',updated_at=? WHERE resource_id=?""",
             (credential_ref, masked_summary, now(), resource_id))
     else:
         db.execute(
-            """UPDATE port_resources SET login_automation_state='huice-same-origin-http-login',updated_at=?
+            """UPDATE port_resources SET login_automation_state='same-origin-http-login',updated_at=?
                WHERE resource_id=? AND credential_ref IS NOT NULL""",
             (now(), resource_id))
     detection_state = "已完成" if not error_code else "检测失败"

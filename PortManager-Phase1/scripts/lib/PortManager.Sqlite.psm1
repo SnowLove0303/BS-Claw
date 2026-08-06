@@ -16,6 +16,7 @@ function Initialize-PMSqlite {
         $candidates = @(
             $configured,
             (Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))) 'tools\python\python.exe'),
+            'F:\AIAPP\Codex\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe',
             (Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
         ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
         $existing = @($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })

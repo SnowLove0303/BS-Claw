@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('Menu', 'List', 'Detail', 'Register', 'Edit', 'Delete', 'Enable', 'Disable', 'Check', 'CheckAll', 'Open', 'CachePlan', 'CleanCache', 'CreateLoginTestProfile', 'DeploymentCleanPlan', 'StorageAudit', 'ResetLoginPlan', 'HuiceList', 'HuiceCheck', 'HuiceLogin', 'AcquireLease', 'ReleaseLease', 'Occupancy', 'LoginCheck', 'CancelLoginCheck')]
+    [ValidateSet('Menu', 'ServiceCheck', 'StoragePlan', 'List', 'Detail', 'Register', 'Edit', 'Delete', 'Enable', 'Disable', 'Check', 'CheckAll', 'Open', 'CachePlan', 'CleanCache', 'CreateLoginTestProfile', 'DeploymentCleanPlan', 'StorageAudit', 'ResetLoginPlan', 'HuiceList', 'HuiceCheck', 'HuiceLogin', 'AcquireLease', 'ReleaseLease', 'Occupancy', 'LoginCheck', 'CancelLoginCheck')]
     [string]$Action = 'Menu',
     [string]$ResourceId,
     [string]$ResourceName,
@@ -52,6 +52,8 @@ $maintenanceModulePath = Join-Path $PSScriptRoot 'lib\PortManager.EnvironmentMai
 Import-Module $maintenanceModulePath -Force
 $storageAuditModulePath = Join-Path $PSScriptRoot 'lib\PortManager.StorageAudit.psm1'
 Import-Module $storageAuditModulePath -Force
+$serviceAdapterModulePath = Join-Path $PSScriptRoot 'lib\PortManager.ServiceAdapter.psm1'
+Import-Module $serviceAdapterModulePath -Force
 $huiceLoginAdapterModulePath = Join-Path $PSScriptRoot 'lib\PortManager.HuiceLoginAdapter.psm1'
 Import-Module $huiceLoginAdapterModulePath -Force
 function Write-PMJsonResult {
@@ -121,7 +123,27 @@ function Resolve-PMResourceId {
         if ($OutputFormat -eq 'Json' -or $NonInteractive) {
             throw '资源编号不能为空；机器调用必须提供 -ResourceId。'
         }
-        $Value = Read-PMUserInput -Prompt '请输入资源编号（格式示例：HCP-XXXXXXXX）'
+        $resources = @(Get-PMResources | Where-Object { $_ -is [object] })
+        if ($resources.Count -eq 0) {
+            throw '当前没有已登记的端口资源；请先进入端口管理注册资源。'
+        }
+        Write-Host '请选择端口资源（输入序号，不需要输入资源编号）：'
+        for ($index = 0; $index -lt $resources.Count; $index++) {
+            $item = $resources[$index]
+            $name = if ([string]::IsNullOrWhiteSpace([string]$item.resourceName)) { '未命名资源' } else { [string]$item.resourceName }
+            $enabled = if ([bool]$item.enabled) { '启用' } else { '停用' }
+            $status = if ($null -ne $item.lastStatus -and $item.lastStatus.loginStatus) { [string]$item.lastStatus.loginStatus } else { '未检查' }
+            Write-Host ("{0}. {1} / 端口 {2} / {3} / {4}" -f ($index + 1), $name, $item.port, $enabled, $status)
+        }
+        $selection = Read-PMUserInput -Prompt '请输入资源序号'
+        if ([string]::IsNullOrWhiteSpace($selection) -or $selection -notmatch '^\d+$') {
+            throw '资源选择无效；请返回资源列表后重新选择。'
+        }
+        $position = [int]$selection - 1
+        if ($position -lt 0 -or $position -ge $resources.Count) {
+            throw '资源选择无效；请返回资源列表后重新选择。'
+        }
+        $Value = [string]$resources[$position].resourceId
     }
     if ([string]::IsNullOrWhiteSpace($Value)) {
         throw '资源编号不能为空。'
@@ -445,19 +467,27 @@ function Invoke-PMDeleteAction {
     $resource = Get-PMResourceById -ResourceId $Id
     if ([string]::IsNullOrWhiteSpace($ProvidedConfirmation)) {
         if ($OutputFormat -eq 'Json' -or $NonInteractive) {
-            throw "机器删除必须提供 -ConfirmationText `"删除 $Id`"。"
+            throw '机器删除必须提供 -ConfirmationText "confirm-delete-selected-resource"；ResourceId 由调用方从资源列表内部绑定。'
         }
         Write-Host '当前操作：删除端口。正在使用、存在运行任务或活动监听进程时会拒绝删除。'
         Write-PMResourceDetail -Resource $resource
-        $ProvidedConfirmation = Read-PMUserInput -Prompt "二次确认：请输入“删除 $Id”"
     }
     elseif ($OutputFormat -eq 'Text') {
         Write-Host '当前操作：删除端口。正在使用、存在运行任务或活动监听进程时会拒绝删除。'
         Write-PMResourceDetail -Resource $resource
     }
+    $displayName = if ([string]::IsNullOrWhiteSpace([string]$resource.resourceName)) { '未命名资源' } else { [string]$resource.resourceName }
+    $displayLabel = "{0}（端口 {1}）" -f $displayName, $resource.port
+    if ([string]::IsNullOrWhiteSpace($ProvidedConfirmation) -and -not $NonInteractive -and $OutputFormat -eq 'Text') {
+        $ProvidedConfirmation = Read-PMUserInput -Prompt "确认删除“$displayLabel”？请输入“确认”继续"
+        if ($ProvidedConfirmation -ne '确认') {
+            throw '已取消删除；资源没有改变。'
+        }
+        $ProvidedConfirmation = 'confirm-delete-selected-resource'
+    }
     $deleted = Remove-PMResource -ResourceId $Id -ConfirmationText $ProvidedConfirmation
     if ($OutputFormat -eq 'Text') {
-        Write-Host "执行结果：资源 $($deleted.resourceId) 已删除；审计记录已保留。"
+        Write-Host "执行结果：所选资源已删除；审计记录已保留。"
     }
     return $deleted
 }
@@ -479,10 +509,25 @@ function Invoke-PMReleaseLeaseAction {
 function Invoke-PMAction {
     param([string]$SelectedAction)
     $actionStopwatch = [Diagnostics.Stopwatch]::StartNew()
-    $null = Invoke-PMLoginDetectionReaper
+    if ($SelectedAction -notin @('ServiceCheck', 'StoragePlan')) {
+        $null = Invoke-PMLoginDetectionReaper
+    }
     # CLI reads and explicit actions must not silently enqueue unrelated login checks.
     # LoginCheck and Open own their respective async maintenance decisions.
     switch ($SelectedAction) {
+        'ServiceCheck' {
+            $data = Invoke-PMServiceCheck
+            if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success ($data.sqliteIntegrity -eq 'ok') -Message '端口管理服务只读自检完成。' -Data $data }
+            else {
+                Write-Host "端口管理服务：可用；资源数：$($data.resourceCount)；SQLite：$($data.sqliteIntegrity)"
+            }
+        }
+        'StoragePlan' {
+            $id = if ([string]::IsNullOrWhiteSpace($ResourceId)) { $null } else { Resolve-PMResourceId -Value $ResourceId }
+            $plan = Get-PMStorageAudit -ResourceId $id -NoAudit
+            if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '存储体积只读计划已生成，未写审计、未删除数据。' -Data $plan }
+            else { Write-PMStorageAuditText -Audit $plan }
+        }
         'List' {
             $resources = @(Get-PMResources)
             if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '端口列表读取成功。' -Data $resources }
@@ -510,13 +555,13 @@ function Invoke-PMAction {
             $id = Resolve-PMResourceId -Value $ResourceId
             $resource = Set-PMResourceEnabled -ResourceId $id -Enabled $true
             if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '端口已启用。' -Data $resource }
-            else { Write-Host "执行结果：资源 $id 已启用。" }
+            else { Write-Host "执行结果：资源 $($resource.resourceName)（端口 $($resource.port)）已启用。" }
         }
         'Disable' {
             $id = Resolve-PMResourceId -Value $ResourceId
             $resource = Set-PMResourceEnabled -ResourceId $id -Enabled $false
             if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '端口已停用。' -Data $resource }
-            else { Write-Host "执行结果：资源 $id 已停用。" }
+            else { Write-Host "执行结果：资源 $($resource.resourceName)（端口 $($resource.port)）已停用。" }
         }
         'Check' {
             $id = Resolve-PMResourceId -Value $ResourceId
@@ -538,7 +583,8 @@ function Invoke-PMAction {
         'Open' {
             $id = Resolve-PMResourceId -Value $ResourceId
             if ($OutputFormat -eq 'Text') {
-                Write-Host "当前操作：打开指定慧策通端口 $id。"
+                $selected = Get-PMResourceById -ResourceId $id
+                Write-Host "当前操作：打开指定慧策通端口 $($selected.resourceName)（端口 $($selected.port)）。"
                 Write-Host '程序将检查启用状态、端口冲突、浏览器调试接口、平台页面和登录证据。'
             }
             $result = Open-PMResource -ResourceId $id -TimeoutSeconds $TimeoutSeconds -SkipLoginMonitoring:$SkipLoginMonitoring
@@ -573,7 +619,10 @@ function Invoke-PMAction {
             if ([string]::IsNullOrWhiteSpace($confirmation) -and -not $NonInteractive -and $OutputFormat -eq 'Text') {
                 Write-Host '此操作只清理可再生浏览器缓存，不会退出登录。'
                 Write-Host '浏览器正在使用该端口时会拒绝，不会自动关闭 Chrome。'
-                $confirmation = Read-PMUserInput -Prompt "确认执行请输入“确认清理可再生缓存 $id”"
+                $selected = Get-PMResourceById -ResourceId $id
+                $name = if ([string]::IsNullOrWhiteSpace([string]$selected.resourceName)) { '未命名资源' } else { [string]$selected.resourceName }
+                $confirmation = Read-PMUserInput -Prompt "确认清理“$name（端口 $($selected.port)）”的可再生缓存？请输入“确认”继续"
+                if ($confirmation -eq '确认') { $confirmation = "确认清理可再生缓存 $id" }
             }
             $result = Invoke-PMResourceCacheCleanup -ResourceId $id -ConfirmationText $confirmation
             if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '可再生缓存清理完成，登录状态未改变。' -Data $result }
@@ -600,13 +649,13 @@ function Invoke-PMAction {
             $id = Resolve-PMResourceId -Value $ResourceId
             $result = Invoke-PMHuiceLoginAgent -Action Check -ResourceId $id -TimeoutSeconds $TimeoutSeconds
             if ($OutputFormat -eq 'Json') { Write-PMJsonResult -Success $true -Message '慧策登录状态检测完成。' -Data $result.data }
-            else { Write-Host "资源 $id：$($result.message)" }
+            else { Write-Host "登录状态检测结果：$($result.message)" }
         }
         'HuiceLogin' {
             $id = Resolve-PMResourceId -Value $ResourceId
             if ($OutputFormat -eq 'Text' -and -not $NonInteractive) {
                 $result = Invoke-PMHuiceLoginAgent -Action Login -ResourceId $id -Interactive -TimeoutSeconds 300
-                Write-Host "资源 $id：慧策登录流程已完成。"
+                Write-Host "慧策登录流程已完成。"
             }
             else {
                 $result = Invoke-PMHuiceLoginAgent -Action Login -ResourceId $id -TimeoutSeconds 300
@@ -631,7 +680,7 @@ function Invoke-PMAction {
         }
         'LoginCheck' {
             $id = Resolve-PMResourceId -Value $ResourceId
-            if ($OutputFormat -eq 'Text') { Write-Host "正在启动资源 $id 的异步登录检测……" }
+            if ($OutputFormat -eq 'Text') { Write-Host "正在启动所选资源的异步登录检测……" }
             $queued = Start-PMLoginStateDetectionAsync -ResourceId $id
             if (-not [bool]$queued.started) {
                 throw (New-PMStructuredException -ErrorCode 'LOGIN_DETECTION_IN_FLIGHT' `
@@ -647,7 +696,7 @@ function Invoke-PMAction {
                 Write-PMJsonResult -Success $true -Message '登录状态检测已异步启动。' -Data $queued
             }
             else {
-                Write-Host "资源 $id：$($queued.message)"
+                Write-Host "登录状态检测：$($queued.message)"
             }
         }
         'CancelLoginCheck' {

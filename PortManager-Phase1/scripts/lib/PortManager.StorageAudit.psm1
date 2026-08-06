@@ -113,7 +113,10 @@ function Get-PMTopDirectoryInventory {
 
 function Get-PMStorageAudit {
     [CmdletBinding()]
-    param([string]$ResourceId)
+    param(
+        [string]$ResourceId,
+        [switch]$NoAudit
+    )
 
     $projectRoot = Get-PMProjectRoot
     $parentRoot = Split-Path $projectRoot -Parent
@@ -246,16 +249,22 @@ function Get-PMStorageAudit {
         promotionBlockers = @($blockers)
         recommendation = '推广只冻结源码、迁移、正式文档和必要事实源；运行数据与缓存由目标机器重建。'
     }
-    Write-PMAudit -Action 'StorageAudit' -ResourceId $ResourceId -Outcome 'Planned' `
-        -Message '已完成端口管理全模块体积盘点，未删除任何数据。' -Details @{
-            executeMode = 'dry-run'
-            totalBytes = $rawTotal
-            profileBytes = $profileTotal
-            cacheBytes = $profileCache
-            testArtifactBytes = $testBytes
-            promotionBlockers = @($blockers)
-        }
-    $result | Add-Member -MemberType NoteProperty -Name auditId -Value (Get-PMLastAuditId) -Force
+    if (-not $NoAudit) {
+        Write-PMAudit -Action 'StorageAudit' -ResourceId $ResourceId -Outcome 'Planned' `
+            -Message '已完成端口管理全模块体积盘点，未删除任何数据。' -Details @{
+                executeMode = 'dry-run'
+                totalBytes = $rawTotal
+                profileBytes = $profileTotal
+                cacheBytes = $profileCache
+                testArtifactBytes = $testBytes
+                promotionBlockers = @($blockers)
+            }
+        $result | Add-Member -MemberType NoteProperty -Name auditId -Value (Get-PMLastAuditId) -Force
+    }
+    else {
+        $result | Add-Member -MemberType NoteProperty -Name auditId -Value $null -Force
+        $result | Add-Member -MemberType NoteProperty -Name readOnly -Value $true -Force
+    }
     return $result
 }
 
@@ -270,3 +279,4 @@ function Write-PMStorageAuditText {
 }
 
 Export-ModuleMember -Function @('Get-PMStorageAudit', 'Write-PMStorageAuditText')
+

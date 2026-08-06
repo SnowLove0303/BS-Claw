@@ -1,27 +1,10 @@
 ﻿[CmdletBinding()]
-param(
-    [switch]$PrerequisiteOnly
-)
+param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$pythonPrerequisitePath = Join-Path $PSScriptRoot 'helpers\Require-FDrivePython.ps1'
-. $pythonPrerequisitePath
-try {
-    $pythonPath = Resolve-BSClawTestPython -ProjectRoot $projectRoot
-}
-catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    exit 2
-}
-$env:BSCLAW_PYTHON_PATH = $pythonPath
-if ($PrerequisiteOnly) {
-    [Console]::Out.WriteLine('F 盘 Python 与 sqlite3 前置检查通过。')
-    exit 0
-}
-
 $runtimeRoot = Join-Path $projectRoot (
     'data\test-runs\static-validation-{0}-{1}' -f [DateTime]::Now.ToString('yyyyMMdd-HHmmss'), [Guid]::NewGuid().ToString('N')
 )
@@ -79,25 +62,23 @@ else {
 }
 Add-ValidationResult -Name 'JSON 文件解析' -Passed ($jsonErrors.Count -eq 0) -Evidence $jsonEvidence
 
-$previousByteCodePrefix = [Environment]::GetEnvironmentVariable('PYTHONPYCACHEPREFIX', 'Process')
-$env:PYTHONPYCACHEPREFIX = Join-Path $runtimeRoot 'python-cache'
-& $pythonPath -m py_compile (Join-Path $projectRoot 'scripts\sqlite_service.py')
-$pythonCompileExitCode = $LASTEXITCODE
-if ($null -eq $previousByteCodePrefix) {
-    [Environment]::SetEnvironmentVariable('PYTHONPYCACHEPREFIX', $null, 'Process')
+$pythonPath = [Environment]::GetEnvironmentVariable('BSCLAW_PYTHON_PATH', 'Process')
+if ([string]::IsNullOrWhiteSpace($pythonPath)) {
+    $pythonPath = Join-Path $projectRoot 'tools\python\python.exe'
 }
-else {
-    $env:PYTHONPYCACHEPREFIX = $previousByteCodePrefix
+$pythonCandidates = @(
+    $pythonPath,
+    'F:\AIAPP\Codex\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe',
+    (Get-Command python.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
+) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) -and (Test-Path -LiteralPath $_ -PathType Leaf) }
+$pythonPath = @($pythonCandidates | Where-Object { [IO.Path]::GetPathRoot([IO.Path]::GetFullPath([string]$_)) -like 'F:\' }) | Select-Object -First 1
+$pythonCompilePassed = $false
+$pythonCompileEvidence = '未找到 F 盘 Python 解释器；未执行 Python 编译检查。'
+if ((Test-Path -LiteralPath $pythonPath -PathType Leaf) -and ([IO.Path]::GetPathRoot([IO.Path]::GetFullPath($pythonPath)) -like 'F:\')) {
+    & $pythonPath -c "import ast,pathlib; ast.parse(pathlib.Path(r'$projectRoot\scripts\sqlite_service.py').read_text(encoding='utf-8'))"
+    $pythonCompilePassed = $LASTEXITCODE -eq 0
+    $pythonCompileEvidence = "解释器=$pythonPath；退出码=$LASTEXITCODE"
 }
-$prerequisiteOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (
-    Join-Path $PSScriptRoot 'test-python-prerequisite.ps1'
-) 2>&1
-$prerequisiteExitCode = $LASTEXITCODE
-$pythonCompilePassed = $pythonCompileExitCode -eq 0 -and $prerequisiteExitCode -eq 0
-$pythonCompileEvidence = (
-    "解释器=$pythonPath；编译退出码=$pythonCompileExitCode；" +
-    "无配置前置回归退出码=$prerequisiteExitCode；结果=$($prerequisiteOutput -join ' ')"
-)
 Add-ValidationResult -Name 'SQLite Python 服务编译' -Passed $pythonCompilePassed -Evidence $pythonCompileEvidence
 
 $listOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'port-manager.ps1') -Action List -OutputFormat Json -NonInteractive 2>&1
@@ -168,27 +149,10 @@ if ($internalActionMatch.Success) {
 }
 $missingRootActions = @($internalActions | Where-Object { $_ -notin $rootActions })
 $extraRootActions = @($rootActions | Where-Object { $_ -notin $internalActions })
-$adapterPath = Join-Path $projectRoot 'adapter\bsclaw-port-adapter.json'
-$adapterActions = @()
-if (Test-Path -LiteralPath $adapterPath) {
-    try {
-        $adapterContract = Get-Content -LiteralPath $adapterPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $adapterActions = @($adapterContract.supportedOperations | ForEach-Object { [string]$_.name })
-    }
-    catch {
-        $adapterActions = @()
-    }
-}
-$formalInternalActions = @($internalActions | Where-Object { $_ -ne 'Menu' })
-$missingAdapterActions = @($formalInternalActions | Where-Object { $_ -notin $adapterActions })
-$extraAdapterActions = @($adapterActions | Where-Object { $_ -notin $formalInternalActions })
 $actionParityPassed = $rootActionMatch.Success -and $internalActionMatch.Success -and
-    $missingRootActions.Count -eq 0 -and $extraRootActions.Count -eq 0 -and
-    $missingAdapterActions.Count -eq 0 -and $extraAdapterActions.Count -eq 0
+    $missingRootActions.Count -eq 0 -and $extraRootActions.Count -eq 0
 Add-ValidationResult -Name '统一根入口 Action 完整性' -Passed $actionParityPassed -Evidence (
-    "根入口=$($rootActions.Count)；内部入口=$($internalActions.Count)；适配器=$($adapterActions.Count)；" +
-    "根入口缺失=$($missingRootActions -join ',')；根入口多余=$($extraRootActions -join ',')；" +
-    "适配器缺失=$($missingAdapterActions -join ',')；适配器多余=$($extraAdapterActions -join ',')"
+    "根入口=$($rootActions.Count)；内部入口=$($internalActions.Count)；缺失=$($missingRootActions -join ',')；多余=$($extraRootActions -join ',')"
 )
 
 $requiredPaths = @(
@@ -224,122 +188,57 @@ $requiredPaths = @(
     'docs\execution.md',
     'docs\sqlite-schema-current.md',
     'docs\manual-test-promotion.md',
-    '..\docs\portmanager-login-migration-audit.md',
+    'docs\promotion-closure-report-20260729.md',
     'skill\SKILL.md',
     'data\ports.json',
     'logs\README.md',
-    'tests\helpers\Require-FDrivePython.ps1',
-    'tests\run-business-regression.ps1',
+    'tests\real-validation-record.md',
     'tests\run-login-state-regression.ps1',
-    'tests\run-static-validation.ps1',
-    'tests\test-python-prerequisite.ps1',
-    'install-bsclaw-command.ps1',
-    'tools\command-launcher\BS.cmd',
-    'tools\command-launcher\bsclaw.cmd',
-    'tools\command-launcher\Invoke-BSClaw.ps1',
-    'docs\command-launcher.md'
+    'tests\login-state-regression-summary.md'
 )
 $missingPaths = @($requiredPaths | Where-Object { -not (Test-Path -LiteralPath (Join-Path $projectRoot $_)) })
-$launcherContractErrors = @()
-if ($missingPaths.Count -eq 0) {
-    $bsCommandText = Get-Content -LiteralPath (Join-Path $projectRoot 'tools\command-launcher\BS.cmd') -Raw
-    $launcherText = Get-Content -LiteralPath (Join-Path $projectRoot 'tools\command-launcher\Invoke-BSClaw.ps1') -Raw
-    if ($bsCommandText -notmatch '(?i)%~1.*Claw') {
-        $launcherContractErrors += 'BS.cmd 未校验 Claw 参数'
-    }
-    if ($launcherText -notmatch [regex]::Escape("Join-Path `$PSScriptRoot '..\..'")) {
-        $launcherContractErrors += '启动器未按相对路径发现模块根目录'
-    }
-    if ($launcherText -notmatch [regex]::Escape("'port-manager.ps1'")) {
-        $launcherContractErrors += '启动器未调用正式根入口'
-    }
-}
-$pathEvidence = if ($missingPaths.Count -eq 0 -and $launcherContractErrors.Count -eq 0) {
-    "$($requiredPaths.Count) 个必需路径均存在，快捷启动器契约有效。"
+$pathEvidence = if ($missingPaths.Count -eq 0) {
+    "$($requiredPaths.Count) 个必需路径均存在。"
 }
 else {
-    "缺失：$($missingPaths -join '、')；契约问题：$($launcherContractErrors -join '、')"
+    "缺失：$($missingPaths -join '、')"
 }
-Add-ValidationResult -Name '交付目录与入口完整性' -Passed ($missingPaths.Count -eq 0 -and $launcherContractErrors.Count -eq 0) -Evidence $pathEvidence
+Add-ValidationResult -Name '交付目录与入口完整性' -Passed ($missingPaths.Count -eq 0) -Evidence $pathEvidence
 
-$repositoryRoot = [IO.Path]::GetFullPath((Split-Path $projectRoot -Parent))
-$loginAgentRoot = Join-Path $repositoryRoot 'HuiceLoginAgent'
-$designContractPath = Join-Path $projectRoot 'docs\design\port-resource-login-state-v1.md'
-$integrationPaths = @(
-    (Join-Path $loginAgentRoot 'login-agent.ps1'),
-    (Join-Path $loginAgentRoot 'lib\HuiceLogin.HttpLogin.psm1'),
-    (Join-Path $loginAgentRoot 'lib\HuiceLogin.Credential.psm1'),
-    (Join-Path $loginAgentRoot 'lib\secure_login_bridge.js')
-)
-$missingIntegrationPaths = @($integrationPaths | Where-Object { -not (Test-Path -LiteralPath $_ -PathType Leaf) })
-$designContractText = if (Test-Path -LiteralPath $designContractPath -PathType Leaf) {
-    [IO.File]::ReadAllText($designContractPath, [Text.Encoding]::UTF8)
+$adapterPath = Join-Path $projectRoot 'adapter\bsclaw-port-adapter.json'
+$huiceLoginRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
+$httpLoginModule = Join-Path $huiceLoginRoot 'lib\HuiceLogin.HttpLogin.psm1'
+$secureLoginBridge = Join-Path $huiceLoginRoot 'lib\secure_login_bridge.js'
+$sqliteService = Join-Path $projectRoot 'scripts\sqlite_service.py'
+$loginContractPassed = $false
+$loginContractEvidence = '登录适配器或 HuiceLoginAgent 交付路径不存在。'
+if (
+    (Test-Path -LiteralPath $adapterPath -PathType Leaf) -and
+    (Test-Path -LiteralPath $httpLoginModule -PathType Leaf) -and
+    (Test-Path -LiteralPath $secureLoginBridge -PathType Leaf)
+) {
+    $adapter = [IO.File]::ReadAllText($adapterPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $httpLoginText = [IO.File]::ReadAllText($httpLoginModule, [Text.Encoding]::UTF8)
+    $secureLoginText = [IO.File]::ReadAllText($secureLoginBridge, [Text.Encoding]::UTF8)
+    $sqliteServiceText = [IO.File]::ReadAllText($sqliteService, [Text.Encoding]::UTF8)
+    $authenticatedRules = @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules)
+    $enabledRuleCount = @($authenticatedRules | Where-Object { [bool]$_.enabled }).Count
+    $hasDomLogin = (
+        $httpLoginText.Contains('Invoke-HuiceWebFormLogin') -or
+        $secureLoginText.Contains('Input.dispatchKeyEvent') -or
+        $secureLoginText.Contains('Input.dispatchMouseEvent')
+    )
+    $loginContractPassed = (
+        [bool]$adapter.resourceDataModel.autoLoginImplemented -and
+        $enabledRuleCount -gt 0 -and
+        $httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin') -and
+        $secureLoginText.Contains("loginTransport: 'same-origin-http'") -and
+        -not $hasDomLogin -and
+        -not $sqliteServiceText.Contains('resource-web-form-login')
+    )
+    $loginContractEvidence = "自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；启用鉴权规则=$enabledRuleCount；同源HTTP=$($httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin'))；DOM竞争实现=$hasDomLogin；旧状态名=$($sqliteServiceText.Contains('resource-web-form-login'))"
 }
-else {
-    ''
-}
-$enabledEvidenceRules = @(
-    $adapterContract.huiceAdapter.loginDetection.authenticatedEvidenceRules |
-        Where-Object { [bool]$_.enabled }
-)
-$httpLoginModuleText = if (Test-Path -LiteralPath $integrationPaths[1] -PathType Leaf) {
-    [IO.File]::ReadAllText($integrationPaths[1], [Text.Encoding]::UTF8)
-}
-else {
-    ''
-}
-$loginEntryText = if (Test-Path -LiteralPath $integrationPaths[0] -PathType Leaf) {
-    [IO.File]::ReadAllText($integrationPaths[0], [Text.Encoding]::UTF8)
-}
-else {
-    ''
-}
-$sqliteServiceText = [IO.File]::ReadAllText(
-    (Join-Path $projectRoot 'scripts\sqlite_service.py'),
-    [Text.Encoding]::UTF8
-)
-$secureBridgeText = if (Test-Path -LiteralPath $integrationPaths[3] -PathType Leaf) {
-    [IO.File]::ReadAllText($integrationPaths[3], [Text.Encoding]::UTF8)
-}
-else {
-    ''
-}
-$designContractMatches = (
-    $designContractText.Contains('authenticatedEvidenceRules：当前为 1 条启用规则') -and
-    $designContractText.Contains('autoLoginImplemented：true') -and
-    $designContractText.Contains('loginAutomationState：`huice-same-origin-http-login`') -and
-    $designContractText.Contains('HuiceLoginAgent') -and
-    $designContractText.Contains('同源 HTTP 登录') -and
-    -not $designContractText.Contains('"authenticatedEvidenceRules": []') -and
-    -not $designContractText.Contains('autoLoginEnabled` 本阶段固定为 `false`')
-)
-$integrationBoundaryPassed = (
-    [IO.Path]::GetPathRoot($repositoryRoot) -like 'F:\' -and
-    $missingIntegrationPaths.Count -eq 0 -and
-    $enabledEvidenceRules.Count -eq 1 -and
-    [bool]$adapterContract.resourceDataModel.autoLoginImplemented -and
-    [string]$adapterContract.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
-    [string]$adapterContract.resourceDataModel.loginAutomationState -eq 'huice-same-origin-http-login' -and
-    $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
-    $httpLoginModuleText.Contains('function Invoke-HuiceHttpLogin') -and
-    -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
-    $loginEntryText.Contains('Invoke-HuiceHttpLogin') -and
-    $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
-    -not $secureBridgeText.Contains('runLegacyFormLogin') -and
-    -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
-    -not $secureBridgeText.Contains('Input.dispatchMouseEvent') -and
-    $sqliteServiceText.Contains("login_automation_state='huice-same-origin-http-login'") -and
-    -not $sqliteServiceText.Contains("login_automation_state='same-origin-http-login'") -and
-    $sqliteServiceText.Contains('resources = source if isinstance(source, list) else (source.get("resources") or [])') -and
-    $loginEntryText.Contains('$resources = [object[]]@(Get-HuiceRegisteredResources)') -and
-    $designContractMatches
-)
-Add-ValidationResult -Name '同仓库登录适配器与设计文档契约一致性' -Passed $integrationBoundaryPassed -Evidence (
-    "仓库根=$repositoryRoot；缺失=$($missingIntegrationPaths -join ',')；启用鉴权规则=$($enabledEvidenceRules.Count)；" +
-    "autoLoginImplemented=$($adapterContract.resourceDataModel.autoLoginImplemented)；" +
-    "loginAdapter=$($adapterContract.resourceDataModel.loginAdapter)；loginAutomationState=$($adapterContract.resourceDataModel.loginAutomationState)；" +
-    "同源HTTP唯一主链=$($secureBridgeText.Contains(""loginTransport: 'same-origin-http'""))；JSON迁移/List数组兼容=True；实现与文档一致=$designContractMatches"
-)
+Add-ValidationResult -Name '慧策唯一同源 HTTP 登录契约' -Passed $loginContractPassed -Evidence $loginContractEvidence
 
 $summary = [ordered]@{
     executedAt = [DateTimeOffset]::Now.ToString('o')

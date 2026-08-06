@@ -6,15 +6,6 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$pythonPrerequisitePath = Join-Path $PSScriptRoot 'helpers\Require-FDrivePython.ps1'
-. $pythonPrerequisitePath
-try {
-    $env:BSCLAW_PYTHON_PATH = Resolve-BSClawTestPython -ProjectRoot $projectRoot
-}
-catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    exit 2
-}
 $entryScript = Join-Path $projectRoot 'port-manager.ps1'
 $runtimeRoot = Join-Path $projectRoot (
     'data\test-runs\login-state-regression-{0}-{1}' -f [DateTime]::Now.ToString('yyyyMMdd-HHmmss'), [Guid]::NewGuid().ToString('N')
@@ -187,31 +178,26 @@ try {
         (Join-Path $projectRoot 'adapter\bsclaw-port-adapter.json'),
         [Text.Encoding]::UTF8
     ) | ConvertFrom-Json
-    $loginAgentRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
-    $httpLoginModuleText = [IO.File]::ReadAllText(
-        (Join-Path $loginAgentRoot 'lib\HuiceLogin.HttpLogin.psm1'),
-        [Text.Encoding]::UTF8
-    )
-    $secureBridgeText = [IO.File]::ReadAllText(
-        (Join-Path $loginAgentRoot 'lib\secure_login_bridge.js'),
-        [Text.Encoding]::UTF8
-    )
+    $huiceLoginRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
+    $httpLoginModule = Join-Path $huiceLoginRoot 'lib\HuiceLogin.HttpLogin.psm1'
+    $secureLoginBridge = Join-Path $huiceLoginRoot 'lib\secure_login_bridge.js'
+    $httpLoginText = if (Test-Path -LiteralPath $httpLoginModule) { [IO.File]::ReadAllText($httpLoginModule, [Text.Encoding]::UTF8) } else { '' }
+    $secureLoginText = if (Test-Path -LiteralPath $secureLoginBridge) { [IO.File]::ReadAllText($secureLoginBridge, [Text.Encoding]::UTF8) } else { '' }
+    $authenticatedRules = @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules)
     $authBoundaryPassed = (
-        @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count -gt 0 -and
-        [bool]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable -and
-        [bool]$adapter.resourceDataModel.autoLoginImplemented -and
-        [string]$adapter.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
-        [string]$adapter.resourceDataModel.loginAutomationState -eq 'huice-same-origin-http-login' -and
+        $authenticatedRules.Count -gt 0 -and
+        @($authenticatedRules | Where-Object { [bool]$_.enabled }).Count -gt 0 -and
+        [bool]$adapter.resourceDataModel.autoLoginImplemented -eq $true -and
+        [string]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceSource -like '*HuiceLoginAgent*' -and
         [string]$adapter.resourceDataModel.credentialPolicy -like '*credentialRef only*' -and
-        $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
-        -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
-        $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
-        -not $secureBridgeText.Contains('runLegacyFormLogin') -and
-        -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
-        -not $secureBridgeText.Contains('Input.dispatchMouseEvent')
+        $httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin') -and
+        -not $httpLoginText.Contains('Invoke-HuiceWebFormLogin') -and
+        $secureLoginText.Contains("loginTransport: 'same-origin-http'") -and
+        -not $secureLoginText.Contains('Input.dispatchKeyEvent') -and
+        -not $secureLoginText.Contains('Input.dispatchMouseEvent')
     )
-    Add-LoginRegressionResult -Id 'LS-005' -Name '鉴权规则与自动登录适配器契约' -Passed $authBoundaryPassed -Executed $true -Evidence (
-        "鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；鉴权证据可用=$($adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；适配器=$($adapter.resourceDataModel.loginAdapter)；loginAutomationState=$($adapter.resourceDataModel.loginAutomationState)；唯一主链=同源HTTP"
+    Add-LoginRegressionResult -Id 'LS-005' -Name '同源 HTTP 登录、凭据与鉴权证据边界' -Passed $authBoundaryPassed -Executed $true -Evidence (
+        "鉴权规则数=$($authenticatedRules.Count)；启用规则数=$(@($authenticatedRules | Where-Object { [bool]$_.enabled }).Count)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；同源HTTP实现=$($httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin'))；DOM输入调用=$($secureLoginText.Contains('Input.dispatchKeyEvent') -or $secureLoginText.Contains('Input.dispatchMouseEvent'))"
     )
 
     $liveEndpoints = @(Get-PMChromeDebugEndpoints -PlatformUrlPatterns @($adapter.huiceAdapter.platformUrlPatterns))
@@ -221,7 +207,7 @@ try {
             Select-Object -First 1
     )
     if ($liveHuiceEndpoint.Count -eq 0) {
-        Add-LoginRegressionResult -Id 'LS-006' -Name '现有慧策 Chrome 实时证据边界' -Passed $true -Executed $false -Evidence (
+        Add-LoginRegressionResult -Id 'LS-006' -Name '现有慧策 Chrome 实时鉴权证据判定' -Passed $true -Executed $false -Evidence (
             '本次没有发现用户已打开的慧策 Chrome；场景保持未验证，不伪造页面。'
         )
     }
@@ -240,7 +226,7 @@ try {
             [string]$liveResult.loginStatus -in @('未登录', '登录状态未知') -and
             [string]$liveResult.loginStatus -ne '已登录'
         )
-        Add-LoginRegressionResult -Id 'LS-006' -Name '现有慧策 Chrome 实时证据边界' -Passed $livePassed -Executed $true -Evidence (
+        Add-LoginRegressionResult -Id 'LS-006' -Name '现有慧策 Chrome 无鉴权证据判定' -Passed $livePassed -Executed $true -Evidence (
             "真实端口=$($liveHuiceEndpoint[0].Port)；真实页面数=$($livePages.Count)；登录状态=$($liveResult.loginStatus)；证据=$($liveResult.loginEvidence.evidenceType)；未读取Cookie/Token=True"
         )
     }

@@ -41,3 +41,4 @@ function Complete-PMTimingTrace {
 }
 
 Export-ModuleMember -Function New-PMTimingTrace,Add-PMTimingStage,Complete-PMTimingTrace
+

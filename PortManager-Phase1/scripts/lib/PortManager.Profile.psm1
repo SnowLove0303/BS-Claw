@@ -20,21 +20,6 @@ foreach ($cacheName in $script:CacheDirectoryNames) {
     $null = $script:CacheDirectorySet.Add($cacheName)
 }
 
-function Get-PMAllowedProfileRoot {
-    $configured = [Environment]::GetEnvironmentVariable('BSCLAW_PROFILE_ROOT', 'Process')
-    $root = if (-not [string]::IsNullOrWhiteSpace($configured)) {
-        [IO.Path]::GetFullPath($configured)
-    }
-    else {
-        $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-        [IO.Path]::GetFullPath((Join-Path (Split-Path $projectRoot -Parent) '_portmanager-profiles'))
-    }
-    if ([IO.Path]::GetPathRoot($root) -notlike 'F:\') {
-        throw "PROFILE_ROOT_NOT_ON_F_DRIVE: $root"
-    }
-    return $root.TrimEnd('\')
-}
-
 function Get-PMProfileMetrics {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$ProfilePath)
@@ -81,7 +66,7 @@ function Invoke-PMProfileCacheCleanup {
         [string]$AuditRecordPath
     )
 
-    $allowedRoot = Get-PMAllowedProfileRoot
+    $allowedRoot = [IO.Path]::GetFullPath('F:\XIANGMU\BS Claw\_portmanager-profiles').TrimEnd('\')
     $fullPath = [IO.Path]::GetFullPath($ProfilePath)
     $allowedPrefix = $allowedRoot + '\'
     if (-not $fullPath.StartsWith($allowedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -280,4 +265,4 @@ function Invoke-PMProfileCacheCleanup {
     }
 }
 
-Export-ModuleMember -Function @('Get-PMAllowedProfileRoot', 'Get-PMProfileMetrics', 'Invoke-PMProfileCacheCleanup')
+Export-ModuleMember -Function @('Get-PMProfileMetrics', 'Invoke-PMProfileCacheCleanup')

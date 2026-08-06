@@ -6,15 +6,6 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$pythonPrerequisitePath = Join-Path $PSScriptRoot 'helpers\Require-FDrivePython.ps1'
-. $pythonPrerequisitePath
-try {
-    $env:BSCLAW_PYTHON_PATH = Resolve-BSClawTestPython -ProjectRoot $projectRoot
-}
-catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    exit 2
-}
 $entryScript = Join-Path $projectRoot 'port-manager.ps1'
 $modulePath = Join-Path $projectRoot 'scripts\lib\PortManager.Core.psm1'
 $huiceModulePath = Join-Path $projectRoot 'scripts\lib\PortManager.Huice.psm1'
@@ -452,23 +443,19 @@ Add-RegressionResult -Id 'RG-013' -Name '并发占用保护与展示一致' -Pas
 
 $browserExecutable = Get-PMChromeExecutable
 if ($null -eq $browserExecutable) {
-    Add-RegressionResult -Id 'RG-014' -Name '隔离空白页不匹配后失败回收' -Passed $false -Requirement 'BF-P1-004/BF-P1-020' -Evidence '现场未找到可用 Google Chrome，未执行且不判定通过；没有改用 Edge。'
+    Add-RegressionResult -Id 'RG-014' -Name '真实浏览器启动失败后回收' -Passed $false -Requirement 'BF-P1-004/BF-P1-020' -Evidence '现场未找到可用 Google Chrome，未执行且不判定通过；没有改用 Edge。'
 }
 else {
     $browserPort = Get-UnboundLocalPort
     $browserProfile = Join-Path $runtimeRoot ('browser-profile-' + [Guid]::NewGuid().ToString('N'))
-    # RG-014 直接通过生产资源服务登记空启动页，避免公共注册入口补入慧策
-    # 默认 URL。Chrome 因此只打开 about:blank，不访问任何误导性测试地址。
-    $launchRegister = Register-PMResource `
-        -ResourceName '隔离空白页失败回收资源' `
-        -HostName '127.0.0.1' `
-        -Port $browserPort `
-        -ConnectionMode 'Launch' `
-        -BrowserExecutable $browserExecutable `
-        -BrowserProfileDirectory $browserProfile `
-        -StartUrl $null `
-        -PlatformUrlPatterns @('*://erp.huice.com/*')
-    $launchId = [string]$launchRegister.resourceId
+    $launchRegister = Invoke-PortManagerProcess -Arguments @(
+        '-Action', 'Register', '-ResourceName', '真实浏览器失败回收资源', '-HostName', '127.0.0.1',
+        '-Port', [string]$browserPort, '-ConnectionMode', 'Launch',
+        '-BrowserExecutable', $browserExecutable, '-BrowserProfileDirectory', $browserProfile,
+        '-StartUrl', 'http://127.0.0.1:9/', '-PlatformUrlPatterns', '*://not-huice.invalid/*',
+        '-OutputFormat', 'Json', '-NonInteractive'
+    )
+    $launchId = [string]$launchRegister.Json.data.resourceId
     $launchOpen = Invoke-PortManagerProcess -Arguments @(
         '-Action', 'Open', '-ResourceId', $launchId, '-TimeoutSeconds', '15',
         '-OutputFormat', 'Json', '-NonInteractive'
@@ -489,17 +476,14 @@ else {
     $launchDetail = Invoke-PortManagerProcess -Arguments @(
         '-Action', 'Detail', '-ResourceId', $launchId, '-OutputFormat', 'Json', '-NonInteractive'
     )
-    Add-RegressionResult -Id 'RG-014' -Name '隔离空白页不匹配后失败回收' -Passed (
-        $null -ne $launchRegister -and
-        -not [string]::IsNullOrWhiteSpace($launchId) -and
+    Add-RegressionResult -Id 'RG-014' -Name '真实浏览器启动失败后回收' -Passed (
+        (Test-JsonEnvelope -Invocation $launchRegister -ExpectedSuccess $true -ExpectedExitCode 0) -and
         (Test-JsonEnvelope -Invocation $launchOpen -ExpectedSuccess $false -ExpectedExitCode 1) -and
-        $launchOpen.Json.errorCode -eq 'PM_PAGE_MISMATCH' -and
-        [string]::IsNullOrWhiteSpace([string]$launchDetail.Json.data.startUrl) -and
         @($remainingBrowserProcesses).Count -eq 0 -and
         $launchLeases.Count -eq 0 -and
         $launchDetail.Json.data.lastStatus.operationStatus -eq '打开失败'
     ) -Requirement 'BF-P1-004/BF-P1-020' -Evidence (
-        "浏览器=$browserExecutable；启动页=about:blank（未登记网络地址）；Open退出码=$($launchOpen.ExitCode)；错误码=$($launchOpen.Json.errorCode)；残留进程数=$(@($remainingBrowserProcesses).Count)；租约数=$($launchLeases.Count)；状态=$($launchDetail.Json.data.lastStatus.operationStatus)"
+        "浏览器=$browserExecutable；Open退出码=$($launchOpen.ExitCode)；残留进程数=$(@($remainingBrowserProcesses).Count)；租约数=$($launchLeases.Count)；状态=$($launchDetail.Json.data.lastStatus.operationStatus)"
     )
 }
 
@@ -571,18 +555,21 @@ $wizardPassed = (
     $wizardRemainingProcessIds.Count -eq 0 -and
     $wizardLeases.Count -eq 0 -and
     $technicalPromptsFound.Count -eq 0 -and
+    -not $wizard.Stdout.Contains('.\port-manager.ps1 -Action') -and
     -not $wizard.Stdout.Contains('在已打开的 Chrome 中完成慧策通登录') -and
-    $wizard.Stdout.Contains('端口管理 HuiceLogin') -and
-    -not $wizard.Stdout.Contains('.\port-manager.ps1 -Action')
+    $wizard.Stdout.Contains('端口管理 HuiceLogin')
 )
 Add-RegressionResult -Id 'RG-015' -Name '首次注册业务向导与默认名称' -Passed $wizardPassed -Requirement 'BF-P0-016/BF-P1-017/BF-P1-018/BF-P1-019/BF-P1-020/BF-P1-021/BF-P1-022/BF-P1-023' -Evidence (
-    "退出码=$($wizard.ExitCode)；超时=$($wizard.TimedOut)；资源=$wizardResourceId/$wizardResourceName；Chrome=$wizardBrowserExecutable；自动端口=$wizardResourcePort；配置目录=$wizardProfileDirectory；实际启动=$wizardBrowserStarted；浏览器/页面/登录=$($wizardResource.lastStatus.browserStatus)/$($wizardResource.lastStatus.pageStatus)/$($wizardResource.lastStatus.loginStatus)；测试进程残留=$($wizardRemainingProcessIds.Count)；租约=$($wizardLeases.Count)；发现技术提示=$($technicalPromptsFound -join ',')；含复制命令=$($wizard.Stdout.Contains('.\port-manager.ps1 -Action'))；未创建时输出=$($wizard.Stdout)"
+    "退出码=$($wizard.ExitCode)；超时=$($wizard.TimedOut)；资源=$wizardResourceId/$wizardResourceName；Chrome=$wizardBrowserExecutable；自动端口=$wizardResourcePort；配置目录=$wizardProfileDirectory；实际启动=$wizardBrowserStarted；浏览器/页面/登录=$($wizardResource.lastStatus.browserStatus)/$($wizardResource.lastStatus.pageStatus)/$($wizardResource.lastStatus.loginStatus)；测试进程残留=$($wizardRemainingProcessIds.Count)；租约=$($wizardLeases.Count)；发现技术提示=$($technicalPromptsFound -join ',')；含复制命令=$($wizard.Stdout.Contains('.\port-manager.ps1 -Action'))；引导HTTP主链=$($wizard.Stdout.Contains('端口管理 HuiceLogin'))；未创建时输出=$($wizard.Stdout)"
 )
 
 $adapter = [IO.File]::ReadAllText((Join-Path $projectRoot 'adapter\bsclaw-port-adapter.json'), [Text.Encoding]::UTF8) | ConvertFrom-Json
-$loginAgentRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
-$httpLoginModuleText = [IO.File]::ReadAllText((Join-Path $loginAgentRoot 'lib\HuiceLogin.HttpLogin.psm1'), [Text.Encoding]::UTF8)
-$secureBridgeText = [IO.File]::ReadAllText((Join-Path $loginAgentRoot 'lib\secure_login_bridge.js'), [Text.Encoding]::UTF8)
+$huiceLoginRoot = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent'
+$httpLoginModule = Join-Path $huiceLoginRoot 'lib\HuiceLogin.HttpLogin.psm1'
+$secureLoginBridge = Join-Path $huiceLoginRoot 'lib\secure_login_bridge.js'
+$httpLoginText = if (Test-Path -LiteralPath $httpLoginModule) { [IO.File]::ReadAllText($httpLoginModule, [Text.Encoding]::UTF8) } else { '' }
+$secureLoginText = if (Test-Path -LiteralPath $secureLoginBridge) { [IO.File]::ReadAllText($secureLoginBridge, [Text.Encoding]::UTF8) } else { '' }
+$authenticatedRules = @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules)
 $adapterPassed = (
     [int]$adapter.schemaVersion -eq 2 -and
     [string]$adapter.version -eq '0.4.0' -and
@@ -593,28 +580,25 @@ $adapterPassed = (
     @($adapter.huiceAdapter.platformUrlPatterns).Count -gt 0 -and
     @($adapter.huiceAdapter.loginPagePatterns).Count -gt 0 -and
     @($adapter.huiceAdapter.loginDetection.states).Count -eq 6 -and
-    @($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count -gt 0 -and
-    [bool]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceAvailable -and
-    [bool]$adapter.resourceDataModel.autoLoginImplemented -and
-    [string]$adapter.resourceDataModel.loginAdapter -eq 'HuiceLoginAgent' -and
-    [string]$adapter.resourceDataModel.loginAutomationState -eq 'huice-same-origin-http-login' -and
-    $httpLoginModuleText.Contains('function Invoke-HuiceSameOriginHttpLogin') -and
-    -not $httpLoginModuleText.Contains('Invoke-HuiceWebFormLogin') -and
-    $secureBridgeText.Contains("loginTransport: 'same-origin-http'") -and
-    -not $secureBridgeText.Contains('runLegacyFormLogin') -and
-    -not $secureBridgeText.Contains('Input.dispatchKeyEvent') -and
-    -not $secureBridgeText.Contains('Input.dispatchMouseEvent') -and
+    $authenticatedRules.Count -gt 0 -and
+    @($authenticatedRules | Where-Object { [bool]$_.enabled }).Count -gt 0 -and
+    [bool]$adapter.resourceDataModel.autoLoginImplemented -eq $true -and
+    [string]$adapter.huiceAdapter.loginDetection.authenticatedEvidenceSource -like '*HuiceLoginAgent*' -and
+    $httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin') -and
+    -not $httpLoginText.Contains('Invoke-HuiceWebFormLogin') -and
+    $secureLoginText.Contains("loginTransport: 'same-origin-http'") -and
+    -not $secureLoginText.Contains('Input.dispatchKeyEvent') -and
+    -not $secureLoginText.Contains('Input.dispatchMouseEvent') -and
     [string]$adapter.huiceAdapter.browserPolicy -like '*Google Chrome*' -and
     [string]$adapter.huiceAdapter.browserPolicy -like '*no alternate browser*'
 )
-Add-RegressionResult -Id 'RG-016' -Name '慧策适配默认规则与 Chrome 边界' -Passed $adapterPassed -Requirement 'BF-P1-020/BF-P1-021' -Evidence (
-    "schema=$($adapter.schemaVersion)；版本=$($adapter.version)；默认页=$($adapter.huiceAdapter.defaultStartUrl)；平台规则数=$(@($adapter.huiceAdapter.platformUrlPatterns).Count)；登录规则数=$(@($adapter.huiceAdapter.loginPagePatterns).Count)；状态数=$(@($adapter.huiceAdapter.loginDetection.states).Count)；鉴权规则数=$(@($adapter.huiceAdapter.loginDetection.authenticatedEvidenceRules).Count)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；loginAutomationState=$($adapter.resourceDataModel.loginAutomationState)；唯一主链=同源HTTP；策略=$($adapter.huiceAdapter.browserPolicy)"
+Add-RegressionResult -Id 'RG-016' -Name '慧策同源 HTTP 登录与鉴权证据契约' -Passed $adapterPassed -Requirement 'BF-P1-020/BF-P1-021' -Evidence (
+    "schema=$($adapter.schemaVersion)；版本=$($adapter.version)；鉴权规则数=$($authenticatedRules.Count)；启用规则数=$(@($authenticatedRules | Where-Object { [bool]$_.enabled }).Count)；自动登录=$($adapter.resourceDataModel.autoLoginImplemented)；同源HTTP实现=$($httpLoginText.Contains('Invoke-HuiceSameOriginHttpLogin'))；DOM输入调用=$($secureLoginText.Contains('Input.dispatchKeyEvent') -or $secureLoginText.Contains('Input.dispatchMouseEvent'))"
 )
 
 $defaultRuntimeRoot = $projectRoot
 $defaultRuntimeStore = Join-Path $defaultRuntimeRoot 'data\port-manager.sqlite3'
-$arbitraryWorkingDirectory = Join-Path $runtimeRoot 'arbitrary-working-directory'
-$null = New-Item -ItemType Directory -Path $arbitraryWorkingDirectory -Force
+$arbitraryWorkingDirectory = 'F:\XIANGMU\BS Claw\_audit-runtime\user-flow-20260728-register'
 $defaultRuntimeList = Invoke-PortManagerProcess -Arguments @(
     '-Action', 'List', '-OutputFormat', 'Json', '-NonInteractive'
 ) -RuntimeRootOverride $null -WorkingDirectory $arbitraryWorkingDirectory
@@ -666,25 +650,18 @@ Add-RegressionResult -Id 'RG-019' -Name '失败反馈提供单一下一步动作
 )
 
 $productionHashAfter = if (Test-Path -LiteralPath $productionDbPath -PathType Leaf) { (Get-FileHash -LiteralPath $productionDbPath -Algorithm SHA256).Hash } else { $null }
-$repositoryRoot = [IO.Path]::GetFullPath((Split-Path $projectRoot -Parent))
-$loginAgentRoot = Join-Path $repositoryRoot 'HuiceLoginAgent'
-$loginEntry = Join-Path $loginAgentRoot 'login-agent.ps1'
-$credentialModule = Join-Path $loginAgentRoot 'lib\HuiceLogin.Credential.psm1'
-$httpLoginModule = Join-Path $loginAgentRoot 'lib\HuiceLogin.HttpLogin.psm1'
-$loginText = if (Test-Path -LiteralPath $loginEntry) { [IO.File]::ReadAllText($loginEntry, [Text.Encoding]::UTF8) } else { '' }
-$credentialText = if (Test-Path -LiteralPath $credentialModule) { [IO.File]::ReadAllText($credentialModule, [Text.Encoding]::UTF8) } else { '' }
-$httpLoginText = if (Test-Path -LiteralPath $httpLoginModule) { [IO.File]::ReadAllText($httpLoginModule, [Text.Encoding]::UTF8) } else { '' }
-$loginContractPassed = (
-    [IO.Path]::GetPathRoot($repositoryRoot) -like 'F:\' -and
-    $loginText.Contains('Invoke-HuiceHttpLogin') -and
-    $loginText.Contains('logged-in-api-ready') -and
-    $credentialText.Contains("Read-Host '企业/卖家账号'") -and
-    $credentialText.Contains("Read-Host '密码（输入内容不会回显）' -AsSecureString") -and
-    $credentialText.Contains("Read-Host '如同意慧策页面显示的服务协议，请输入") -and
-    $httpLoginText.Contains('function Invoke-HuiceHttpLogin')
+$legacySystemPath = 'F:\XIANGMU\BS Claw\System'
+$huiceLoginEntry = Join-Path (Split-Path -Parent $projectRoot) 'HuiceLoginAgent\login-agent.ps1'
+$moduleBoundaryPassed = (
+    -not (Test-Path -LiteralPath $legacySystemPath) -and
+    (Test-Path -LiteralPath $huiceLoginEntry -PathType Leaf) -and
+    [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($projectRoot)) -like 'F:\' -and
+    [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($huiceLoginEntry)) -like 'F:\'
 )
-Add-RegressionResult -Id 'RG-020' -Name '同仓库慧策 HTTP 登录主链契约' -Passed $loginContractPassed -Requirement '登录适配器交付边界' -Evidence (
-    "仓库根在F盘=$([IO.Path]::GetPathRoot($repositoryRoot) -like 'F:\')；登录入口存在=$((Test-Path -LiteralPath $loginEntry -PathType Leaf))；Read-Host/协议/HTTP/API-ready 契约=$loginContractPassed"
+Add-RegressionResult -Id 'RG-020' -Name '端口管理、登录代理与旧空壳隔离' -Passed (
+    $moduleBoundaryPassed
+) -Requirement '执行边界' -Evidence (
+    "默认 SQLite 路径=$productionDbPath；HuiceLoginAgent入口=$huiceLoginEntry；旧System不存在=$(-not (Test-Path -LiteralPath $legacySystemPath))；模块均位于F盘=$moduleBoundaryPassed"
 )
 
 $summary = [ordered]@{

@@ -1,6 +1,6 @@
 ﻿Set-StrictMode -Version Latest
 
-$script:AllowedProfileRoot = Get-PMAllowedProfileRoot
+$script:AllowedProfileRoot = [IO.Path]::GetFullPath('F:\XIANGMU\BS Claw\_portmanager-profiles').TrimEnd('\')
 $script:ExcludedLoginData = @(
     'Cookies', 'Local Storage', 'Session Storage', 'Preferences', 'IndexedDB',
     'Profile SQLite databases', 'resource definitions', 'CredentialRef',

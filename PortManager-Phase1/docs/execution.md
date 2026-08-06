@@ -2,7 +2,7 @@
 
 ## 统一入口与模块边界
 
-唯一推荐入口是 `F:\BS-Claw\PortManager-Phase1\port-manager.ps1`；`scripts\port-manager.ps1` 仅为内部实现。根入口与内部入口的正式 Action 由静态验证检查完全一致，JSON 模式标准输出只允许一个信封。
+唯一推荐入口是 `F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1`；`scripts\port-manager.ps1` 仅为内部实现。根入口与内部入口的正式 Action 由静态验证检查完全一致，JSON 模式标准输出只允许一个信封。
 
 职责边界：
 
@@ -10,7 +10,8 @@
 - HuiceLoginAgent：受控登录适配器，只负责真实登录、会话复用、鉴权续接与只读 API 证据。
 - `PortManager.Network.psm1`：主机、端口、TCP、HTTP/CDP 网络原语。
 - `PortManager.Performance.psm1`：阶段耗时，不参与业务判断。
-- `PortManager.StorageAudit.psm1`：全模块只读体积盘点。
+- `PortManager.StorageAudit.psm1`：全模块体积盘点；正式 `StorageAudit` 会追加脱敏审计，外部适配使用不写审计的 `StoragePlan`。
+- `PortManager.ServiceAdapter.psm1`：公共服务自检边界，只返回资源数与 SQLite integrity。
 - `PortManager.HuiceLoginAdapter.psm1`：PortManager 到登录适配器的稳定 JSON 边界。
 
 插件执行前最小规则：
@@ -31,14 +32,14 @@
 
 ## 一、执行目标
 
-用户通过资源编号注册、检测并打开一个真实慧策通 Chromium 调试端口，得到端口、浏览器、页面和登录证据的分层中文结果。
+用户通过中文菜单列表和序号选择资源，注册、检测并打开真实慧策通 Chromium 调试端口，得到端口、浏览器、页面和登录证据的分层中文结果；ResourceId 仅作为内部和机器接口关联键。
 
 ## 二、执行前提
 
 1. 使用 Windows PowerShell 5.1 或更高版本。
-2. 进入 `F:\BS-Claw\PortManager-Phase1` 后运行根入口；程序从其他当前目录启动时仍把 JSON 数据统一写入项目 `data`。
+2. 进入 `F:\XIANGMU\BS Claw\PortManager-Phase1` 后运行根入口；程序从其他当前目录启动时仍把 JSON 数据统一写入项目 `data`。
 3. 自动启动方式需要本机安装真实 Google Chrome；程序不会切换到其他浏览器。
-4. 程序自动在 F 盘 `F:\BS-Claw\_portmanager-profiles` 创建独立 Chrome 配置；该目录不属于正式 `data`。
+4. 程序自动在 F 盘 `F:\XIANGMU\BS Claw\_portmanager-profiles` 创建独立 Chrome 配置；该目录不属于正式 `data`。
 5. 测试高风险删除前，确认资源没有活动浏览器进程。
 
 ## 端口环境清理与登录重测
@@ -49,6 +50,8 @@
 2. `CreateLoginTestProfile`：复制资源配置到独立端口和独立空白 Profile，用于重新测试 PowerShell Login；不复制任何秘密或浏览器会话。
 3. `DeploymentCleanPlan`：只输出跨机器部署前的保留、可清理和迁移后重建清单。
 4. `StorageAudit`：盘点整个模块和全部 Profile，输出体积分类、Top 膨胀项和推广阻断，不删除数据。
+5. `ServiceCheck`：外部服务适配只读自检；不写审计、不触碰 Profile。
+6. `StoragePlan`：外部服务适配只读体积计划；不写审计、不删除数据。
 
 `CleanCache` 在 Profile 正在运行时返回 `PM_PROFILE_IN_USE`，不会自动关闭 Chrome。普通 List、Check、Open、Login 不会调用缓存清理。
 
@@ -64,7 +67,7 @@
 
 ## 三、注册
 
-运行 `powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1"`，在菜单输入 `1`。
+运行 `powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1"`，在菜单输入 `1`。
 
 普通流程：
 
@@ -88,7 +91,7 @@
 ## 四、检测
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Check -ResourceId HCP-XXXXXXXX
 ```
 
 检测顺序：
@@ -106,7 +109,7 @@ powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1
 ## 五、打开
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX -TimeoutSeconds 20
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Open -ResourceId HCP-XXXXXXXX -TimeoutSeconds 20
 ```
 
 执行顺序：
@@ -131,20 +134,20 @@ powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1
 编辑：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Edit -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Edit -ResourceId HCP-XXXXXXXX
 ```
 
 启停：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Enable -ResourceId HCP-XXXXXXXX
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Disable -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Enable -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Disable -ResourceId HCP-XXXXXXXX
 ```
 
 删除：
 
 ```powershell
-powershell -NoP -EP Bypass -File "F:\BS-Claw\PortManager-Phase1\port-manager.ps1" -Action Delete -ResourceId HCP-XXXXXXXX
+powershell -NoP -EP Bypass -File "F:\XIANGMU\BS Claw\PortManager-Phase1\port-manager.ps1" -Action Delete -ResourceId HCP-XXXXXXXX
 ```
 
 编辑、启停和删除前都会检查操作租约、活动监听进程和 running 登录检测任务。删除需要准确输入：
@@ -180,6 +183,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\run-login-state-
 回归会在 `data\test-runs` 下创建唯一 F 盘隔离目录，并使用真实 TCP 端口、真实监听进程和现场可用的真实 Google Chrome 验证失败回收；临时 Profile 仍置于独立的 F 盘 Profile 根。登录专项回归会使用测试拥有的 F 盘 Profile 真实打开慧策登录页，并在完成后精确回收本轮 Chrome；不会伪造慧策页面、鉴权证据或登录结果。
 ## 2026-07-29 运行依赖与检测收口
 
-SQLite 运行服务只接受 F 盘 Python 解释器。测试和诊断入口只接受当前进程的 `BSCLAW_PYTHON_PATH` 或项目 `tools\python\python.exe`，并在创建测试目录或数据库前验证 `sqlite3` 可导入。若未配置，入口以退出码 2 输出一条可执行中文提示；不会自动下载、使用 C 盘解释器、修改用户/系统环境变量或创建运行数据。
+SQLite 服务只接受 F 盘 Python 解释器：优先 `BSCLAW_PYTHON_PATH`，其次项目 `tools\python\python.exe`，最后仅接受 PATH 中实际位于 F 盘的 `python.exe`。若没有 F 盘解释器，程序明确失败，不会使用 C 盘解释器或创建空库。
 
 登录检测任务由 SQLite `login_detection_tasks` 唯一记录，状态使用 `running/completed/failed/cancelled`；启动后必须写入真实 worker PID。每个 CLI 操作先执行超时 reaper，超时进程被回收、任务和运行状态收口并写入 SQLite 审计。删除/编辑/打开在检测任务活动期间拒绝；取消会等待进程退出并设置退避时间。

@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 $persistenceModule = Join-Path $PSScriptRoot 'PortManager.Persistence.psm1'
 Import-Module $persistenceModule -Force
@@ -177,13 +177,7 @@ function Start-PMLoginStateWatcher {
         try { $existingStart = (Get-Process -Id ([int]$existing.ProcessId) -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o') } catch { }
         return [pscustomobject]@{ started = $false; reused = $true; processId = [int]$existing.ProcessId; processStartTime = $existingStart }
     }
-    $agentRoot = if (-not [string]::IsNullOrWhiteSpace($env:BSCLAW_HUICE_LOGIN_AGENT_ROOT)) {
-        [IO.Path]::GetFullPath($env:BSCLAW_HUICE_LOGIN_AGENT_ROOT)
-    }
-    else {
-        [IO.Path]::GetFullPath((Join-Path (Split-Path $ProjectRoot -Parent) 'HuiceLoginAgent'))
-    }
-    $agentPath = Join-Path $agentRoot 'login-agent.ps1'
+    $agentPath = 'F:\XIANGMU\BS Claw\HuiceLoginAgent\login-agent.ps1'
     $scriptPath = if (Test-Path -LiteralPath $agentPath -PathType Leaf) { $agentPath } else { Join-Path $ProjectRoot 'scripts\login-state-watcher.ps1' }
     $null = Assert-PMPersistencePathOnFDrive -Path $RuntimeRoot -FieldName 'login watcher runtime'
     $psExe = Join-Path $PSHOME 'powershell.exe'

@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('Menu', 'List', 'Detail', 'Register', 'Edit', 'Delete', 'Enable', 'Disable', 'Check', 'CheckAll', 'Open', 'CachePlan', 'CleanCache', 'CreateLoginTestProfile', 'DeploymentCleanPlan', 'StorageAudit', 'ResetLoginPlan', 'HuiceList', 'HuiceCheck', 'HuiceLogin', 'AcquireLease', 'ReleaseLease', 'Occupancy', 'LoginCheck', 'CancelLoginCheck')]
+    [ValidateSet('Menu', 'ServiceCheck', 'StoragePlan', 'List', 'Detail', 'Register', 'Edit', 'Delete', 'Enable', 'Disable', 'Check', 'CheckAll', 'Open', 'CachePlan', 'CleanCache', 'CreateLoginTestProfile', 'DeploymentCleanPlan', 'StorageAudit', 'ResetLoginPlan', 'HuiceList', 'HuiceCheck', 'HuiceLogin', 'AcquireLease', 'ReleaseLease', 'Occupancy', 'LoginCheck', 'CancelLoginCheck')]
     [string]$Action = 'Menu',
     [string]$ResourceId,
     [string]$ResourceName,

@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)][string]$ResourceId,
     [Parameter(Mandatory = $true)][string]$RuntimeRoot,
     [Parameter(Mandatory = $true)][string]$ProjectRoot,

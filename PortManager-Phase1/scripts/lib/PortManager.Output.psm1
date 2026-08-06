@@ -57,7 +57,6 @@ function Write-PMResourceListOutput {
         return
     }
     $Resources | Select-Object `
-        @{Name = '资源编号'; Expression = { $_.resourceId } },
         @{Name = '资源名称'; Expression = { $_.resourceName } },
         @{Name = '平台'; Expression = { $_.platformName } },
         @{Name = '地址'; Expression = { $_.hostName } },
@@ -75,14 +74,11 @@ function Write-PMResourceListOutput {
 function Write-PMResourceDetailOutput {
     param([object]$Resource)
     [pscustomobject]@{
-        资源编号 = $Resource.resourceId
         资源名称 = $Resource.resourceName
         平台名称 = $Resource.platformName
         主机地址 = $Resource.hostName
         端口号 = $Resource.port
         连接方式 = $Resource.connectionMode
-        浏览器程序 = $Resource.browserExecutable
-        浏览器配置目录 = $Resource.browserProfileDirectory
         慧策页面地址 = $Resource.startUrl
         启用状态 = if ($Resource.enabled) { '启用' } else { '停用' }
         最近操作 = $Resource.lastStatus.operationStatus
@@ -105,7 +101,6 @@ function Write-PMCheckOutput {
     $resource = $Result.Resource
     $status = $Result.Status
     [pscustomobject]@{
-        资源编号 = $resource.resourceId
         地址端口 = "$($resource.hostName):$($resource.port)"
         连接状态 = $status.connectionStatus
         浏览器状态 = $status.browserStatus
@@ -126,7 +121,6 @@ function Write-PMOpenOutput {
     $resource = $Result.Resource
     $status = $Result.Status
     [pscustomobject]@{
-        资源编号 = $resource.resourceId
         端口 = $resource.port
         浏览器状态 = $status.browserStatus
         调试接口状态 = if ($status.debugEndpoint) { '可访问' } else { '不可访问' }
