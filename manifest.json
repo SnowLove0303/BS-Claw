@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "packType": "bsclaw-selection-module",
+  "project": "BS Claw",
+  "module": "selection",
+  "phase": "phase-1-mainline",
+  "status": "hot-add-distribution-fixed-path-implemented-for-technical-self-check",
+  "repository": {
+    "path": "F:\\XIANGMU\\BS Claw\\SelectionModule-Phase1",
+    "branch": "feature/selection-module-phase1",
+    "remote": null,
+    "baselineCommit": null
+  },
+  "executionPolicy": {
+    "businessConfirmation": "disabled",
+    "automaticExecution": "target",
+    "manualBusinessInput": "disabled",
+    "externalAuth": "blocking-gate",
+    "preflight": "mandatory",
+    "writeRetry": "disabled-by-default"
+  },
+  "architecture": {
+    "language": "PowerShell",
+    "persistence": "SQLite",
+    "contracts": "JSON manifests and public service contracts",
+    "resourceSource": "PortManager formal resource service",
+    "scheduler": "BSClaw-Local unified scheduler",
+    "loginAgent": "HuiceLoginAgent",
+    "businessApi": "Huice HTTP API through module-owned connector"
+  },
+  "scope": {
+    "included": [
+      "module discovery and capability declaration",
+      "automatic preflight and resource binding",
+      "hot goods candidate acquisition through Huice HTTP API",
+      "default one-item hot-goods selection rule",
+      "add-distribution HTTP action with pre-readback and post-readback",
+      "readback, task tracking, audit and recovery contracts"
+    ],
+    "deferred": [
+      "additional selection conditions and ranking rules",
+      "supplier and shop policy details",
+      "publish and distribution expansion",
+      "complete HTTP endpoint field mapping beyond hot-add-distribution v1",
+      "production database migration decisions"
+    ]
+  },
+  "requirements": {
+    "domains": [
+      "SEL-01-user-goal-and-entry",
+      "SEL-02-resource-discovery-and-preflight",
+      "SEL-03-account-and-session",
+      "SEL-04-candidate-acquisition",
+      "SEL-05-rules-filtering-and-ranking",
+      "SEL-06-selection-action-execution",
+      "SEL-07-task-and-state",
+      "SEL-08-result-readback",
+      "SEL-09-recovery-audit-and-resource-closure",
+      "SEL-10-acceptance-regression-release-and-evolution"
+    ],
+    "specification": "docs/unified-selection-spec.md",
+    "implementationMethod": "docs/implementation-method.md",
+    "auditMatrix": "docs/audit-and-test-matrix.md",
+    "traceability": "docs/traceability.md"
+  },
+  "sources": {
+    "bsclawKnowledgePack": "F:\\\u6b63\u5f0f\u9879\u76ee\u4e0e\u6a21\u5757\u5316\u5185\u5bb9\\\u9879\u76ee\u8d44\u6599\u5305\\BS-Claw",
+    "pynesRepositoryCommit": "7adc8f4f26d19d1ac386d06ff3c4ed64f16b4ae6",
+    "pynesRepository": "https://github.com/SnowLove0303/pynes-desktop",
+    "feishuDocument": "https://ecnqczgpykcs.feishu.cn/wiki/BsxAw6dT7i4ha3kUmmwc4Qy7nVg?from=from_copylink",
+    "rag": "not_configured"
+  },
+  "truthfulness": {
+    "implementedCode": true,
+    "realApiVerified": false,
+    "businessPathVerified": false,
+    "releaseApproved": false
+  }
+}

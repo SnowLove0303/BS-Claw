@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "huice-selection-phase1",
+  "name": "Huice Selection Phase 1",
+  "version": "0.3.0",
+  "type": "business-module",
+  "riskLevel": "high",
+  "businessWritesEnabled": true,
+  "businessConfirmation": {
+    "enabled": false,
+    "reason": "Phase 1 closes business confirmation, but scheduler authorization, login, risk-control, permission, resource and readback gates remain mandatory."
+  },
+  "entry": {
+    "runtime": "powershell",
+    "path": "selection-module.ps1"
+  },
+  "actions": [
+    {
+      "id": "candidate.acquire",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": true,
+      "resourcePolicy": "exclusive",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "timeoutSeconds": 180,
+      "inputs": ["apiContractVerified", "httpRequest"],
+      "resultCheck": {"mode": "result-contract", "requiredFields": ["businessSummary", "successCount", "failureCount", "candidateSnapshot", "readbackAt", "recoveryAdvice"]}
+    },
+    {
+      "id": "candidate.filter",
+      "mode": "read-only",
+      "writeLevel": "pure-read",
+      "requiresHuiceResource": true,
+      "resourcePolicy": "exclusive",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "timeoutSeconds": 120,
+      "inputs": ["ruleVersion", "rules", "candidates"],
+      "resultCheck": {"mode": "result-contract", "requiredFields": ["businessSummary", "successCount", "failureCount", "selected", "rejected", "ruleVersion", "readbackAt"]}
+    },
+    {
+      "id": "selection.execute",
+      "mode": "write",
+      "writeLevel": "business-write",
+      "requiresHuiceResource": true,
+      "resourcePolicy": "exclusive",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "timeoutSeconds": 300,
+      "inputs": ["actionContractVerified", "writeAuthorization", "idempotencyKey", "httpRequest", "readbackRequest"],
+      "businessWriteGate": {"allowWhenSchedulerAuthorized": true, "requiredScope": "isolated-resource", "requiresReadback": true, "unknownResultPolicy": "readback-before-retry"},
+      "resultCheck": {"mode": "result-contract", "requiredFields": ["businessSummary", "successCount", "failureCount", "idempotencyKey", "readbackAt", "recoveryAdvice"]}
+    },
+    {
+      "id": "hot.add-distribution",
+      "mode": "write",
+      "writeLevel": "business-write",
+      "requiresHuiceResource": true,
+      "resourcePolicy": "exclusive",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "timeoutSeconds": 600,
+      "inputs": ["writeAuthorization", "pathContract"],
+      "businessWriteGate": {"allowWhenSchedulerAuthorized": true, "requiredScope": "isolated-resource", "requiresReadback": false, "unknownResultPolicy": "readback-before-retry"},
+      "resultCheck": {"mode": "result-contract", "requiredFields": ["businessSummary", "successCount", "failureCount", "candidateSnapshot", "ruleVersion", "selected", "idempotencyKey", "writeSummary", "readbackSummary", "readbackAt", "recoveryAdvice"]}
+    }
+  ],
+  "capabilities": [
+    {"id": "candidate.acquire", "action": "candidate.acquire", "displayName": "Acquire candidate goods", "category": "selection", "writeLevel": "pure-read", "requiresResourceSelection": true, "resourceSelectionMode": "single", "resourceExecutionPolicy": "same-resource-exclusive", "requiresLoginGate": true, "requiresConfirmation": false, "progressText": "Acquiring Huice candidates", "successResultView": "candidate-snapshot", "failureNextAction": "Check resource, API contract and connector context", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "candidate.filter", "action": "candidate.filter", "displayName": "Filter candidate goods", "category": "selection", "writeLevel": "pure-read", "requiresResourceSelection": true, "resourceSelectionMode": "single", "resourceExecutionPolicy": "same-resource-exclusive", "requiresLoginGate": true, "requiresConfirmation": false, "progressText": "Filtering Huice candidates", "successResultView": "filtered-candidates", "failureNextAction": "Provide frozen ruleVersion, rules and candidate snapshot", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "selection.execute", "action": "selection.execute", "displayName": "Execute selection action", "category": "selection", "writeLevel": "business-write", "requiresResourceSelection": true, "resourceSelectionMode": "single", "resourceExecutionPolicy": "same-resource-exclusive", "requiresLoginGate": true, "requiresConfirmation": false, "progressText": "Executing verified Huice selection action", "successResultView": "selection-result", "failureNextAction": "Verify isolated authorization, idempotency and readback contract", "retryable": false, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "hot.add-distribution", "action": "hot.add-distribution", "displayName": "Hot goods add distribution", "category": "selection", "writeLevel": "business-write", "requiresResourceSelection": true, "resourceSelectionMode": "single", "resourceExecutionPolicy": "same-resource-exclusive", "requiresLoginGate": true, "requiresConfirmation": false, "progressText": "Reading Huice hot candidates, selecting one item and adding it to distribution", "successResultView": "hot-add-distribution-result", "failureNextAction": "Check resource login/API-ready, hot API, add-distribution permission and readback result", "retryable": false, "cancellable": true, "recoverable": true, "dispatch": "scheduler"}
+  ]
+}

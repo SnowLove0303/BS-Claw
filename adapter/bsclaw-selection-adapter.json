@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "adapterId": "bsclaw-huice-selection-phase1",
+  "moduleId": "huice-selection-phase1",
+  "name": "BSClaw Huice Selection Phase 1 Scheduler Adapter",
+  "version": "0.3.0",
+  "type": "business-module-adapter",
+  "entry": {
+    "runtime": "powershell",
+    "path": "..\\selection-module.ps1",
+    "outputFormat": "single-json-document"
+  },
+  "resourceContract": {
+    "source": "scheduler-injected ResourceContext from PortManager public JSON contract",
+    "userFacingSelection": "User selects visible name/list index in BSClaw-Local; adapter receives internally bound context.",
+    "prohibitedUserInputs": ["resourceId", "taskId", "moduleId", "action", "JSON"],
+    "selectionModes": ["single"],
+    "executionPolicies": ["same-resource-exclusive"],
+    "policyPendingBehavior": "block"
+  },
+  "actions": [
+    {
+      "id": "candidate.acquire",
+      "command": "Execute",
+      "selectionAction": "candidate.acquire",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "requiresLogin": true,
+      "writeRisk": "read",
+      "timeoutSeconds": 180,
+      "cancel": "supported",
+      "recovery": "supported",
+      "resultReadback": "candidate-snapshot-required"
+    },
+    {
+      "id": "candidate.filter",
+      "command": "Execute",
+      "selectionAction": "candidate.filter",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "requiresLogin": true,
+      "writeRisk": "read",
+      "timeoutSeconds": 120,
+      "cancel": "supported",
+      "recovery": "supported",
+      "resultReadback": "rule-output-required"
+    },
+    {
+      "id": "selection.execute",
+      "command": "Execute",
+      "selectionAction": "selection.execute",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "requiresLogin": true,
+      "writeRisk": "write",
+      "timeoutSeconds": 300,
+      "cancel": "supported",
+      "recovery": "supported",
+      "resultReadback": "required",
+      "unknownResultPolicy": "readback-before-retry"
+    },
+    {
+      "id": "hot.add-distribution",
+      "command": "Execute",
+      "selectionAction": "hot.add-distribution",
+      "resourceSelectionMode": "single",
+      "resourceExecutionPolicy": "same-resource-exclusive",
+      "requiresLogin": true,
+      "writeRisk": "write",
+      "timeoutSeconds": 600,
+      "cancel": "supported",
+      "recovery": "supported",
+      "resultReadback": "required-by-module-fixed-workflow",
+      "unknownResultPolicy": "readback-before-retry",
+      "userFacingPath": "User chooses the menu item and a readable resource list index; the scheduler binds resource, action and task context internally."
+    }
+  ],
+  "statusActions": ["Discover", "Preflight", "Status", "Cancel", "Recover"],
+  "sensitiveDataPolicy": {
+    "denyPlaintext": ["password", "token", "cookie", "authorization", "credential", "profile"],
+    "audit": "redacted-only"
+  }
+}
