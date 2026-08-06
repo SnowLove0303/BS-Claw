@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,17 @@ ACTION_MAP = {
     "resource-detail": "Detail",
     "check-resource": "Check",
     "storage-plan": "StoragePlan",
+    "register": "Register",
+    "edit": "Edit",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete",
+    "check-all": "CheckAll",
+    "occupancy": "Occupancy",
+    "login-check": "LoginCheck",
+    "cancel-login-check": "CancelLoginCheck",
+    "open-resource": "Open",
+    "login-resource": "HuiceLogin",
 }
 FORBIDDEN_ACTIONS = {
     "Register",
@@ -44,6 +56,7 @@ def _result(
     message: str,
     evidence: Any,
     service_state_writes_executed: bool = False,
+    needs_manual_action: bool = False,
 ) -> dict[str, Any]:
     return {
         "success": success,
@@ -51,7 +64,7 @@ def _result(
         "result": result,
         "errorCode": error_code,
         "message": message,
-        "needsManualAction": False,
+        "needsManualAction": needs_manual_action,
         "evidence": evidence,
         "businessWritesExecuted": False,
         "serviceStateWritesExecuted": service_state_writes_executed,
@@ -76,6 +89,7 @@ def _safe_status(status: Any) -> dict[str, Any]:
     allowed = (
         "connectionStatus",
         "pageStatus",
+        "pageMatchStatus",
         "loginStatus",
         "loginApiProbeStatus",
         "loginConfidence",
@@ -100,8 +114,95 @@ def _safe_resource(resource: Any) -> dict[str, Any]:
         "enabled": resource.get("enabled"),
     }
     status = _safe_status(resource.get("lastStatus"))
+    checked_at = status.get("loginCheckedAt") or status.get("checkedAt")
+    connection = status.get("connectionStatus") or "状态未检查"
+    page = status.get("pageStatus") or status.get("pageMatchStatus") or "页面状态未检查"
+    login = status.get("loginStatus") or "登录状态未检查"
+    api = status.get("loginApiProbeStatus") or "接口状态未检查"
     if status:
         safe["status"] = status
+    safe.update(
+        {
+            "connectionStatus": connection,
+            "browserStatus": status.get("browserStatus") or connection,
+            "pageStatus": page,
+            "loginStatus": login,
+            "apiStatus": api,
+            "confidence": status.get("loginConfidence") or "unknown",
+            "checkedAt": checked_at,
+            "snapshotAt": datetime.now(timezone.utc).isoformat(),
+            "freshness": "fresh" if checked_at else "never-checked",
+            "statusSource": "PortManager public JSON",
+            "nextAction": "reuse-resource" if login in {"logged-in", "authenticated", "已登录"} and api in {"logged-in-api-ready", "200", "ok", "已就绪"} else "check-resource",
+            "nextActionLabel": "复用已登录资源" if login in {"logged-in", "authenticated", "已登录"} and api in {"logged-in-api-ready", "200", "ok", "已就绪"} else "重新检查状态",
+            "occupancy": {
+                "active": bool(resource.get("currentOccupancy")),
+                "count": resource.get("currentOccupancy") or 0,
+            },
+            "lease": {"active": bool(resource.get("leaseId"))},
+        }
+    )
+    return safe
+
+
+def _safe_checked_resource(data: Any) -> dict[str, Any]:
+    """Normalize PortManager Check/Detail data into one UI-safe fact shape."""
+    source = (data.get("resource") or data.get("Resource")) if isinstance(data, dict) else None
+    if not isinstance(source, dict):
+        source = data if isinstance(data, dict) else {}
+    status = (data.get("status") or data.get("Status")) if isinstance(data, dict) else None
+    if not isinstance(status, dict):
+        status = (data.get("lastStatus") or data.get("LastStatus")) if isinstance(data, dict) else None
+    if not isinstance(status, dict):
+        status = source.get("lastStatus") or source.get("LastStatus") or source.get("status") or source.get("Status")
+    if not isinstance(status, dict):
+        status = {}
+
+    connection = status.get("connectionStatus") or "状态未知"
+    page = status.get("pageStatus") or status.get("pageMatchStatus") or "页面状态未知"
+    login = status.get("loginStatus") or "登录状态未知"
+    api = status.get("loginApiProbeStatus") or "未配置可靠探针"
+    confidence = status.get("loginConfidence") or "unknown"
+    checked_at = status.get("loginCheckedAt") or status.get("checkedAt") or ""
+    if str(login).lower() in {"logged-in", "已登录"} and str(api).lower() in {
+        "logged-in-api-ready",
+        "200",
+        "ok",
+        "已就绪",
+    }:
+        state = "可用"
+        next_action = "可继续使用当前资源"
+    elif str(login).lower() in {"未登录", "login-required", "需登录"}:
+        state = "需登录"
+        next_action = "进入正式登录流程"
+    else:
+        state = "未验证"
+        next_action = "重新检查资源状态"
+    safe = _safe_resource(source)
+    safe.update(
+        {
+            "state": state,
+            "connectionStatus": connection,
+            "pageStatus": page,
+            "loginStatus": login,
+            "apiStatus": api,
+            "confidence": confidence,
+            "checkedAt": checked_at,
+            "snapshotAt": datetime.now(timezone.utc).isoformat(),
+            "freshness": "fresh" if checked_at else "never-checked",
+            "statusSource": "PortManager public JSON check",
+            "browserStatus": status.get("browserStatus") or connection,
+            "occupancy": {
+                "active": bool(source.get("currentOccupancy")),
+                "count": source.get("currentOccupancy") or 0,
+            },
+            "lease": {"active": bool(source.get("leaseId"))},
+            "summary": status.get("summary") or f"{state}：{login} / {api}",
+            "nextAction": next_action,
+            "nextActionLabel": "继续使用当前资源" if state == "可用" else "进入正式登录流程" if state == "需登录" else "重新检查资源状态",
+            "lastStatus": _safe_status(status),
+        }
+    )
     return safe
 
 
@@ -121,26 +222,32 @@ def _safe_payload(action: str, data: Any) -> dict[str, Any]:
         resources = data if isinstance(data, list) else []
         return {
             "resourceCount": len(resources),
+            "snapshotAt": datetime.now(timezone.utc).isoformat(),
+            "statusSource": "PortManager public JSON",
             "resources": [_safe_resource(item) for item in resources],
         }
-    if action == "resource-detail":
-        return {"resource": _safe_resource(data)}
-    if action == "check-resource" and isinstance(data, dict):
-        resource = data.get("resource") or data.get("Resource")
-        if not isinstance(resource, dict):
-            resource = data
-        safe = _safe_resource(resource)
-        status = (
-            data.get("status")
-            or data.get("Status")
-            or data.get("lastStatus")
-        )
-        if not isinstance(status, dict) and isinstance(resource, dict):
-            status = resource.get("status") or resource.get("lastStatus")
-        safe_status = _safe_status(status)
-        if safe_status:
-            safe["lastStatus"] = safe_status
-        return {"resource": safe}
+    if action in {"resource-detail", "check-resource"}:
+        safe = _safe_checked_resource(data)
+        result = {"resource": safe}
+        if action == "check-resource":
+            result.update(
+                {
+                    "connectionStatus": safe["connectionStatus"],
+                    "pageStatus": safe["pageStatus"],
+                    "loginStatus": safe["loginStatus"],
+                    "apiStatus": safe["apiStatus"],
+                    "confidence": safe["confidence"],
+                    "checkedAt": safe["checkedAt"],
+                    "snapshotAt": safe["snapshotAt"],
+                    "freshness": safe["freshness"],
+                    "statusSource": safe["statusSource"],
+                    "browserStatus": safe["browserStatus"],
+                    "occupancy": safe["occupancy"],
+                    "lease": safe["lease"],
+                    "nextAction": safe["nextAction"],
+                }
+            )
+        return result
     if action == "storage-plan" and isinstance(data, dict):
         totals = data.get("totals") if isinstance(data.get("totals"), dict) else {}
         profiles = data.get("profiles") if isinstance(data.get("profiles"), list) else []
@@ -166,10 +273,40 @@ def _safe_payload(action: str, data: Any) -> dict[str, Any]:
             "promotionBlocked": bool(data.get("rawFolderPromotionBlocked")),
             "promotionBlockers": list(data.get("promotionBlockers") or []),
         }
+    if isinstance(data, list):
+        return {"items": [_safe_resource(item) for item in data if isinstance(item, dict)], "count": len(data)}
+    if isinstance(data, dict):
+        safe = {}
+        for key in ("resourceId", "resourceName", "port", "enabled", "currentOccupancy", "checkedAt", "loginDetectionTask", "cancelled", "released", "resourceCount", "sqliteIntegrity", "schemaVersion"):
+            if key in data:
+                safe[key] = data.get(key)
+        if isinstance(data.get("resource"), dict):
+            safe["resource"] = _safe_resource(data["resource"])
+        return safe
     return {}
 
 
-def _invoke(action: str, resource_id: str, timeout: int) -> dict[str, Any]:
+def _success_message(action: str) -> str:
+    messages = {
+        "register": "资源已注册；已写入服务状态，未执行业务写入。",
+        "edit": "资源已编辑；已写入服务状态，未执行业务写入。",
+        "enable": "资源已启用；已写入服务状态，未执行业务写入。",
+        "disable": "资源已停用；已写入服务状态，未执行业务写入。",
+        "delete": "资源已删除；已写入服务状态，未执行业务写入。",
+        "check-resource": "服务状态检查已完成；已写入运行状态，未执行业务写入。",
+        "check-all": "全部资源检查已完成；已写入运行状态，未执行业务写入。",
+        "login-check": "登录状态检查已完成；已写入服务状态，未执行业务写入。",
+        "cancel-login-check": "登录状态检查已取消；已写入服务状态，未执行业务写入。",
+        "service-check": "端口管理服务检查已完成；未执行业务写入。",
+        "list-resources": "端口资源列表读取完成；未写入服务状态或业务数据。",
+        "resource-detail": "资源详情读取完成；未写入服务状态或业务数据。",
+        "storage-plan": "存储盘点计划已生成；未删除数据或执行业务写入。",
+        "occupancy": "资源占用情况读取完成；未写入服务状态或业务数据。",
+    }
+    return messages.get(action, "端口管理操作已完成；请查看结果详情。")
+
+
+def _invoke_raw(action: str, resource_id: str, timeout: int, params: dict[str, Any] | None = None) -> dict[str, Any]:
     if action not in ACTION_MAP:
         return _result(
             False,
@@ -180,15 +317,17 @@ def _invoke(action: str, resource_id: str, timeout: int) -> dict[str, Any]:
             evidence={"allowedActions": sorted(ACTION_MAP)},
         )
     public_action = ACTION_MAP[action]
-    if public_action in FORBIDDEN_ACTIONS:
+    if action == "login-resource":
         return _result(
             False,
-            status="blocked",
+            status="waiting-manual",
             result=None,
-            error_code="SERVICE_ACTION_FORBIDDEN",
-            message="该动作会改变服务状态，本阶段禁止自动调度。",
-            evidence={"readOnly": False},
+            error_code="LOGIN_INTERACTIVE_REQUIRED",
+            message="正式登录需要在当前 PowerShell 会话中安全输入凭据；请继续按登录提示操作。",
+            evidence={"publicAction": public_action, "interactiveEntry": True},
+            needs_manual_action=True,
         )
+    params = params if isinstance(params, dict) else {}
     root = _resolve_port_manager_root()
     entry = root / "port-manager.ps1"
     if not entry.is_file():
@@ -213,7 +352,7 @@ def _invoke(action: str, resource_id: str, timeout: int) -> dict[str, Any]:
         "Json",
         "-NonInteractive",
     ]
-    if action in {"resource-detail", "check-resource", "storage-plan"} and resource_id:
+    if action in {"resource-detail", "check-resource", "storage-plan", "occupancy", "login-check", "cancel-login-check", "open-resource", "login-resource", "edit", "enable", "disable", "delete"} and resource_id:
         command.extend(["-ResourceId", resource_id])
     if action in {"resource-detail", "check-resource"} and not resource_id:
         return _result(
@@ -224,6 +363,18 @@ def _invoke(action: str, resource_id: str, timeout: int) -> dict[str, Any]:
             message="该资源操作必须提供 ResourceId。",
             evidence={"resourceIdProvided": False},
         )
+    argument_flags = {
+        "resourceName": "-ResourceName", "hostName": "-HostName", "port": "-Port",
+        "connectionMode": "-ConnectionMode", "browserExecutable": "-BrowserExecutable",
+        "browserProfileDirectory": "-BrowserProfileDirectory", "startUrl": "-StartUrl",
+        "notes": "-Notes", "confirmationText": "-ConfirmationText",
+        "leaseId": "-LeaseId", "taskRef": "-TaskRef",
+    }
+    for key, flag in argument_flags.items():
+        if params.get(key) not in (None, ""):
+            command.extend([flag, str(params[key])])
+    if params.get("disabled") is True:
+        command.append("-Disabled")
     try:
         completed = subprocess.run(
             command,
@@ -266,26 +417,43 @@ def _invoke(action: str, resource_id: str, timeout: int) -> dict[str, Any]:
             evidence={"publicAction": public_action},
         )
     success = completed.returncode == 0 and envelope.get("success") is True
+    failure_message = str(envelope.get("message") or "端口管理操作失败。")[:300]
+    failure_code = str(envelope.get("errorCode") or "PORT_MANAGER_FAILED")
+    if action == "storage-plan" and "Sum" in failure_message:
+        failure_code = "PROFILE_NOT_CONFIGURED"
+        failure_message = "该资源没有可盘点的 Profile 数据；未执行清理，也未删除任何文件。"
     return _result(
         success,
         status="succeeded" if success else "failed",
         result=_safe_payload(action, envelope.get("data")),
-        error_code=None if success else str(envelope.get("errorCode") or "PORT_MANAGER_FAILED"),
+        error_code=None if success else failure_code,
         message=(
             "端口管理只读动作与结果回查成功。"
             if success
-            else str(envelope.get("message") or "端口管理只读动作失败。")[:300]
+            else failure_message
         ),
         evidence={
             "publicAction": public_action,
             "exitCode": completed.returncode,
             "singleJsonDocument": True,
-            "writeLevel": (
-                "service-state-write" if action == "check-resource" else "pure-read"
-            ),
+            "writeLevel": "service-state-write" if action in {"check-resource", "check-all", "register", "edit", "enable", "disable", "delete", "login-check", "cancel-login-check", "open-resource", "login-resource"} else "pure-read",
         },
-        service_state_writes_executed=action == "check-resource" and success,
+        service_state_writes_executed=success and action in {"check-resource", "check-all", "register", "edit", "enable", "disable", "delete", "login-check", "cancel-login-check", "open-resource", "login-resource"},
     )
+
+
+def _invoke(action: str, resource_id: str, timeout: int, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    result = _invoke_raw(action, resource_id, timeout, params)
+    if result.get("success"):
+        result["message"] = _success_message(action)
+        evidence = result.get("evidence")
+        if isinstance(evidence, dict):
+            evidence["writeLevel"] = (
+                "service-state-write"
+                if action in {"check-resource", "check-all", "register", "edit", "enable", "disable", "delete", "login-check", "cancel-login-check", "open-resource", "login-resource"}
+                else "pure-read"
+            )
+    return result
 
 
 def main() -> int:
@@ -299,7 +467,9 @@ def main() -> int:
             else ""
         )
         timeout = int(payload.get("timeoutSeconds") or 60)
-        output = _invoke(action, resource_id, timeout)
+        # The scheduler protocol names user inputs ``parameters``; keep
+        # ``params`` as a backward-compatible adapter alias for older callers.
+        output = _invoke(action, resource_id, timeout, payload.get("parameters", payload.get("params")))
     except (ValueError, TypeError, RuntimeError, json.JSONDecodeError) as exc:
         code = str(exc) if str(exc).startswith("PORT_MANAGER_") else "SERVICE_ADAPTER_FAILED"
         output = _result(

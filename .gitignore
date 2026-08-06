@@ -5,6 +5,9 @@ data/command-backups/
 data/tasks.jsonl
 data/*.jsonl
 data/python-bootstrap/
+data/test-runs/
+data/monitor/
+data/port-state-snapshot.json
 runtime/
 logs/
 /tools/python/

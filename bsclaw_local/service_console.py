@@ -31,6 +31,13 @@ class ServiceConsole:
         )
         print(f"- 本地服务插件：{'已接入' if services else '未接入'}")
         print(f"- 业务执行模块：{'已接入' if business else '暂无可用业务模块'}")
+        timing = snapshot.get("portManager", {}).get("timingMs")
+        if timing is not None:
+            print(f"- 状态读取：{'复用本地缓存' if timing == 0 else f'真实读取 {timing} ms'}")
+        stale = sum(1 for item in resources if item.get("freshness") == "已过期")
+        never = sum(1 for item in resources if item.get("freshness") == "从未检测")
+        if stale or never:
+            print(f"- 状态新鲜度：已过期 {stale}，从未检测 {never}；不会把旧记录当作当前可用")
         warning = self._launcher_warning()
         if warning:
             print(f"- 启动入口：{warning}")

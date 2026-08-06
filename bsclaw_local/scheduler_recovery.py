@@ -13,12 +13,15 @@ from .scheduler_models import (
     STATE_TIMED_OUT,
     STATE_UNVERIFIED,
     STATE_WAITING_MANUAL,
+    STATE_WAITING_LOGIN,
+    STATE_WAITING_EXTERNAL_VERIFICATION,
     STATE_WAITING_VERIFY,
     TERMINAL_STATES,
     parse_iso,
 )
 from .scheduler_store import SchedulerDataError, SchedulerStore
 from .scheduler_view import public_task
+from .resource_mutex import ResourceMutex
 
 
 class SchedulerRecovery:
@@ -50,14 +53,46 @@ class SchedulerRecovery:
         now = datetime.now().astimezone()
         for task in self.store.list(200):
             state = task.get("state")
-            if state in TERMINAL_STATES or state == STATE_WAITING_MANUAL:
+            if state in TERMINAL_STATES:
                 continue
             deadline = parse_iso(task.get("deadlineAt"))
             if deadline and deadline.astimezone() <= now:
+                if task.get("resourceId"):
+                    ResourceMutex.reclaim_if_stale(
+                        self.store.root, str(task.get("resourceId"))
+                    )
                 task = self.store.transition(task, STATE_TIMED_OUT, stage="recovery", summary="程序重启后确认任务已超过截止时间", error_code="TASK_DEADLINE_EXCEEDED", next_action="确认没有业务写入后再决定是否重试", retryable=not bool(task.get("businessWritesExecuted")), source="recovery", extra={"finishedAt": now_iso()})
+            elif state in {STATE_WAITING_MANUAL, STATE_WAITING_LOGIN, STATE_WAITING_EXTERNAL_VERIFICATION}:
+                owner_pid = int(task.get("ownerPid") or 0)
+                if owner_pid and not process_is_active(owner_pid):
+                    if task.get("resourceId"):
+                        ResourceMutex.reclaim_if_stale(
+                            self.store.root, str(task.get("resourceId"))
+                        )
+                    task = self.store.transition(
+                        task,
+                        STATE_CANCELLED,
+                        stage="recovery",
+                        summary="人工介入所属进程已退出，等待状态已清理",
+                        error_code="PARENT_PROCESS_EXITED",
+                        needs_manual=False,
+                        next_action="重新从正式入口发起操作",
+                        retryable=True,
+                        source="recovery",
+                        extra={"finishedAt": now_iso()},
+                    )
+                    recovered.append(public_task(task, include_result=False))
+                continue
             elif state in {STATE_RUNNING, STATE_WAITING_VERIFY}:
-                if process_is_active(int(task.get("workerPid") or 0)):
+                if process_is_active(
+                    int(task.get("workerPid") or 0),
+                    task.get("workerProcessStartToken"),
+                ):
                     continue
+                if task.get("resourceId"):
+                    ResourceMutex.reclaim_if_stale(
+                        self.store.root, str(task.get("resourceId"))
+                    )
                 task = self.store.transition(task, STATE_UNVERIFIED, stage="recovery", summary="程序重启后无法确认原执行结果", error_code="EXECUTION_STATE_UNCERTAIN", needs_manual=True, next_action="先执行结果回查或人工确认，禁止自动重跑", retryable=False, source="recovery", extra={"finishedAt": now_iso()})
             else:
                 task = self.store.transition(task, STATE_BLOCKED, stage="recovery", summary="程序重启后任务需要重新预检", error_code="RECOVERY_RECHECK_REQUIRED", next_action="确认环境后执行 task retry", retryable=True, source="recovery")
@@ -65,7 +100,7 @@ class SchedulerRecovery:
         return recovered
 
 
-def process_is_active(pid: int) -> bool:
+def process_is_active(pid: int, start_token: int | None = None) -> bool:
     if pid <= 0:
         return False
     handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
@@ -75,6 +110,10 @@ def process_is_active(pid: int) -> bool:
         exit_code = ctypes.c_ulong()
         if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
             return False
-        return exit_code.value == 259
+        if exit_code.value != 259:
+            return False
+        if start_token is None:
+            return True
+        return ResourceMutex._process_start_token(pid) == int(start_token)
     finally:
         ctypes.windll.kernel32.CloseHandle(handle)

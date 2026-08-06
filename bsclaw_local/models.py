@@ -18,6 +18,7 @@ class CommandResult:
     data: Any
     message: str = ""
     error_code: str = ""
+    elapsed_ms: int = 0
 
 
 def envelope(

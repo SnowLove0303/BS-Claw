@@ -29,33 +29,46 @@ class LocalApplication:
         self.module_registry = ModuleRegistry(paths)
         self.tasks = TaskStore(paths.data_root)
         self.scheduler = UnifiedScheduler(SchedulerStore(paths.data_root), self.module_registry, self.port_manager)
+        # Reconcile dead workers before exposing the menu/status views. This is
+        # local scheduler state only; PortManager remains an external service
+        # fact source and is not touched by recovery itself.
+        self.recovered_tasks = self.scheduler.recover()
         try:
             manifest = json.loads(paths.manifest_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             manifest = {}
         self.business_writes_enabled = manifest.get("businessWritesEnabled") is True
 
-    def snapshot(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        port_status = self.port_manager.service_status()
+    def snapshot(self, *, force_refresh: bool = False) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        port_status = self.port_manager.service_status(force_refresh=force_refresh)
         snapshot = {
             "portManager": {key: value for key, value in port_status.items() if key != "resources"},
             "huice": self.huice.status_from_resources(port_status["resources"]),
         }
         return snapshot, self.modules.discover(snapshot)
 
+    def cached_resources(self) -> list[dict[str, Any]]:
+        result = self.port_manager.list_resources()
+        return result.data if result.success and isinstance(result.data, list) else []
+
     def execute(self, command: str, *, no_record: bool = False, target: str = "本地服务整体", audit_type: str = "状态审计", task_limit: int = 20) -> dict[str, Any]:
         if command == "tasks":
             records = self.tasks.recent(max(1, min(task_limit, 100)))
             return envelope("tasks", True, f"读取到 {len(records)} 条最近记录", records)
         if command == "resources":
-            result = self.port_manager.list_resources()
+            result = self.port_manager.list_resources(force_refresh=True)
             data = result.data if result.success else []
-            output = envelope(command, result.success, result.message or "端口资源读取失败", data, error_code=result.error_code, next_action=_next_action(command, result.success, data))
+            summary = result.message or "端口资源读取失败"
+            if result.success and result.elapsed_ms:
+                summary = f"{summary}（真实读取 {result.elapsed_ms} ms）"
+            elif result.success:
+                summary = f"{summary}（复用本地状态缓存）"
+            output = envelope(command, result.success, summary, data, error_code=result.error_code, next_action=_next_action(command, result.success, data))
             if not no_record:
                 self.tasks.append(command, "成功" if result.success else "失败", output["summary"])
             return output
 
-        snapshot, modules = self.snapshot()
+        snapshot, modules = self.snapshot(force_refresh=True)
         success = snapshot["portManager"]["state"] == "可用"
         overall_state = _overall_state(snapshot, modules)
         error_code = ""

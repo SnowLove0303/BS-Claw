@@ -47,7 +47,7 @@ class ProjectPaths:
                 "BSCLAW_HUICE_LOGIN_AGENT_ROOT",
                 repository_root / "HuiceLoginAgent",
             ),
-            data_root=local_root / "data",
+            data_root=_resolve_override("BSCLAW_DATA_ROOT", local_root / "data"),
         )
 
     @property

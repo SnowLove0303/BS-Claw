@@ -49,21 +49,34 @@ class UserCapability:
     cancellable: bool
     recoverable: bool
     dispatch: str
+    resource_selection_mode: str
+    concurrency_policy: str
+    resource_execution_policy: str
 
     @classmethod
     def from_manifest(
         cls, manifest: dict[str, Any], payload: dict[str, Any]
     ) -> "UserCapability":
+        action = str(payload.get("action") or payload.get("id") or "")
+        requires_resource = bool(payload.get("requiresResourceSelection"))
+        selection_mode = str(
+            payload.get("resourceSelectionMode")
+            or ("all" if action == "check-all" else "single" if requires_resource else "none")
+        )
+        execution_policy = str(
+            payload.get("resourceExecutionPolicy")
+            or ("cross-resource-parallel" if selection_mode == "all" else "same-resource-exclusive" if selection_mode == "single" else "policy-pending")
+        )
         return cls(
             module_id=str(manifest.get("moduleId") or ""),
             module_name=str(manifest.get("name") or ""),
             module_type=str(manifest.get("type") or "business-module"),
             capability_id=str(payload.get("id") or ""),
-            action=str(payload.get("action") or payload.get("id") or ""),
+            action=action,
             display_name=str(payload.get("displayName") or ""),
             category=str(payload.get("category") or "查看"),
             write_level=str(payload.get("writeLevel") or WRITE_LEVEL_PURE_READ),
-            requires_resource=bool(payload.get("requiresResourceSelection")),
+            requires_resource=requires_resource,
             requires_login_gate=bool(payload.get("requiresLoginGate")),
             requires_confirmation=bool(payload.get("requiresConfirmation")),
             confirmation_text=str(payload.get("confirmationText") or ""),
@@ -74,6 +87,12 @@ class UserCapability:
             cancellable=bool(payload.get("cancellable")),
             recoverable=bool(payload.get("recoverable")),
             dispatch=str(payload.get("dispatch") or "scheduler"),
+            resource_selection_mode=selection_mode,
+            concurrency_policy=str(
+                payload.get("concurrencyPolicy")
+                or ("per-resource" if selection_mode in {"single", "all"} else "none")
+            ),
+            resource_execution_policy=execution_policy,
         )
 
 

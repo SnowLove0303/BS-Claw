@@ -16,6 +16,7 @@ MODULE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 MANIFEST_NAMES = (
     "bsclaw.module.json",
     "module.manifest.json",
+    "selection-module.manifest.json",
     "bsclaw.service.json",
     "service.manifest.json",
 )
@@ -33,6 +34,13 @@ SUPPORTED_RESOURCE_POLICIES = {
     "exclusive",
     "same-port-shared",
     "cross-port",
+}
+SUPPORTED_SELECTION_MODES = {"none", "single", "multi", "all"}
+SUPPORTED_EXECUTION_POLICIES = {
+    "same-resource-exclusive",
+    "cross-resource-parallel",
+    "serial",
+    "policy-pending",
 }
 
 
@@ -153,6 +161,9 @@ class ModuleRegistry:
                             "category": capability.category,
                             "writeLevel": capability.write_level,
                             "requiresResourceSelection": capability.requires_resource,
+                            "resourceSelectionMode": capability.resource_selection_mode,
+                            "concurrencyPolicy": capability.concurrency_policy,
+                            "resourceExecutionPolicy": capability.resource_execution_policy,
                             "requiresLoginGate": capability.requires_login_gate,
                             "requiresConfirmation": capability.requires_confirmation,
                             "retryable": capability.retryable,
@@ -208,6 +219,7 @@ class ModuleRegistry:
                     continue
                 roots.append(path)
         roots.append(self.paths.repository_root / "modules")
+        roots.append(self.paths.repository_root / "SelectionModule-Phase1")
         roots.append(self.paths.local_root / "services")
         configured_services = os.environ.get("BSCLAW_SERVICE_ROOTS", "")
         for value in configured_services.split(os.pathsep):
@@ -295,6 +307,23 @@ class ModuleRegistry:
                     errors.append(
                         f"{action_id or 'action'} 声明写入但模块未启用业务写入"
                     )
+                selection_mode = str(action.get("resourceSelectionMode") or "none")
+                execution_policy = str(action.get("resourceExecutionPolicy") or "policy-pending")
+                if plugin_type in {"workflow", "business-module"} and "resourceSelectionMode" not in action:
+                    errors.append(f"{action_id or 'action'} 缺少 resourceSelectionMode")
+                if plugin_type in {"workflow", "business-module"} and "resourceExecutionPolicy" not in action:
+                    errors.append(f"{action_id or 'action'} 缺少 resourceExecutionPolicy")
+                if selection_mode not in SUPPORTED_SELECTION_MODES:
+                    errors.append(f"{action_id or 'action'} resourceSelectionMode 无效")
+                if execution_policy not in SUPPORTED_EXECUTION_POLICIES:
+                    errors.append(f"{action_id or 'action'} resourceExecutionPolicy 无效")
+                if selection_mode != "none" and execution_policy == "policy-pending":
+                    errors.append(f"{action_id or 'action'} 不得使用未决资源执行策略")
+                if selection_mode == "none" and execution_policy != "policy-pending":
+                    errors.append(f"{action_id or 'action'} 无资源动作不得声明资源执行策略")
+                inputs = action.get("inputs")
+                if inputs is not None and not isinstance(inputs, list):
+                    errors.append(f"{action_id or 'action'} inputs 必须为数组")
                 policy = str(action.get("resourcePolicy") or "")
                 if policy not in SUPPORTED_RESOURCE_POLICIES:
                     errors.append(f"{action_id or 'action'} 缺少有效 resourcePolicy")

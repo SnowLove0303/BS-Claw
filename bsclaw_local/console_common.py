@@ -44,6 +44,22 @@ class ConsoleIO:
         return items[index] if 0 <= index < len(items) else None
 
     @staticmethod
+    def selected_many(items: list[dict[str, Any]], value: str) -> list[dict[str, Any]] | None:
+        """Resolve a user-facing comma-separated selection; IDs stay internal."""
+        text = value.strip().lower()
+        if text in {"all", "全部"}:
+            return list(items)
+        if text in {"0", "取消", "返回"}:
+            return []
+        try:
+            indexes = [int(part.strip()) - 1 for part in value.split(",") if part.strip()]
+        except ValueError:
+            return None
+        if not indexes or any(index < 0 or index >= len(items) for index in indexes):
+            return None
+        return [items[index] for index in dict.fromkeys(indexes)]
+
+    @staticmethod
     def short_time(value: Any) -> str:
         text = str(value or "")
         return text.replace("T", " ")[:19] if text else "时间未知"
@@ -68,11 +84,13 @@ class ConsoleIO:
             return "当前没有接入对应模块；可返回菜单继续使用其他功能。"
         if error_code in {"MODULE_MANIFEST_INVALID", "MODULE_ENTRY_NOT_FOUND"}:
             return "该模块尚未完成接入；可返回菜单继续使用其他功能。"
+        if error_code == "RESOURCE_BUSY":
+            return "该资源正在被其他操作使用；可等待当前操作结束后重新检查，或返回选择其他资源。"
         text = str(task.get("nextAction") or "")
         for source, target in {
             "task result": "任务详情",
             "task status": "任务中心",
-            "ResourceId": "资源编号",
+            "ResourceId": "已选择的资源",
         }.items():
             text = text.replace(source, target)
         return text or "根据结果提示处理后重试"

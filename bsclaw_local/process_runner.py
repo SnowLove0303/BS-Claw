@@ -4,6 +4,7 @@ import json
 import locale
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,9 @@ def run_powershell_json(
     *,
     timeout_seconds: int = 45,
 ) -> CommandResult:
+    started = time.perf_counter()
     if not script.is_file():
-        return CommandResult(False, None, "正式入口文件不存在。", "ENTRY_NOT_FOUND")
+        return CommandResult(False, None, "正式入口文件不存在。", "ENTRY_NOT_FOUND", 0)
     command = [
         "powershell.exe",
         "-NoProfile",
@@ -62,9 +64,9 @@ def run_powershell_json(
             creationflags=CREATE_NO_WINDOW,
         )
     except subprocess.TimeoutExpired:
-        return CommandResult(False, None, "状态读取超时。", "COMMAND_TIMEOUT")
+        return CommandResult(False, None, "状态读取超时。", "COMMAND_TIMEOUT", int((time.perf_counter() - started) * 1000))
     except OSError:
-        return CommandResult(False, None, "无法启动 PowerShell 状态入口。", "POWERSHELL_UNAVAILABLE")
+        return CommandResult(False, None, "无法启动 PowerShell 状态入口。", "POWERSHELL_UNAVAILABLE", int((time.perf_counter() - started) * 1000))
 
     stdout = _decode_output(completed.stdout).strip()
     stderr = _decode_output(completed.stderr).strip()
@@ -72,14 +74,14 @@ def run_powershell_json(
         payload: dict[str, Any] = json.loads(stdout)
     except (json.JSONDecodeError, TypeError):
         message = _safe_error(stderr or stdout or "正式入口没有返回有效 JSON。")
-        return CommandResult(False, None, message, "INVALID_JSON_OUTPUT")
+        return CommandResult(False, None, message, "INVALID_JSON_OUTPUT", int((time.perf_counter() - started) * 1000))
 
     success = bool(payload.get("success")) and completed.returncode == 0
     message = str(payload.get("message") or payload.get("summary") or "")
     error_code = str(payload.get("errorCode") or "")
     if not success and not message:
         message = _safe_error(stderr or "状态读取失败。")
-    return CommandResult(success, payload.get("data"), message, error_code)
+    return CommandResult(success, payload.get("data"), message, error_code, int((time.perf_counter() - started) * 1000))
 
 
 def run_powershell_interactive(script: Path, arguments: list[str]) -> int:

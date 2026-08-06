@@ -108,6 +108,7 @@ class SchedulerStore:
             "finishedAt": None,
             "timeoutSeconds": timeout_seconds,
             "deadlineAt": None,
+            "ownerPid": os.getpid(),
             "attempt": 1,
             "errorCode": None,
             "summary": "任务已创建",

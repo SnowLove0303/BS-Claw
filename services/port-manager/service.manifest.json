@@ -1,235 +1,60 @@
 {
   "schemaVersion": 1,
   "moduleId": "port-manager",
-  "name": "端口管理服务",
+  "name": "\u7aef\u53e3\u7ba1\u7406\u670d\u52a1",
   "version": "1.0.0",
   "type": "resource-service",
   "riskLevel": "low",
   "businessWritesEnabled": false,
   "writesServiceState": true,
-  "entry": {
-    "runtime": "python",
-    "path": "port_manager_service_adapter.py"
+  "prohibitedDirectAccess": ["PortManager internal modules", "PortManager SQLite", "browser Profile", "credentials and browser storage"],
+  "resourceSelectionContract": {
+    "modes": ["single", "multi", "all"],
+    "resourceExecutionPolicy": {"single": "same-resource-exclusive", "multi": "policy-pending", "all": "cross-resource-parallel"},
+    "userSelection": "User selects a visible list index; the adapter binds the internal resource fact. User-facing paths must not ask for ResourceId.",
+    "confirmationPolicy": "BSClaw-Local owns user-facing confirmation for service-state-write actions. Public JSON calls receive internally bound resourceId and a non-user-facing confirmation token when required.",
+    "singleActions": ["resource-detail", "check-resource", "storage-plan", "register", "edit", "enable", "disable", "delete", "occupancy", "login-check", "cancel-login-check", "open-resource", "login-resource"],
+    "allActions": ["check-all"],
+    "multiActions": [],
+    "multiNote": "Multi-resource execution requires an explicit policy before use."
   },
-  "externalService": {
-    "environmentVariable": "BSCLAW_PORT_MANAGER_ROOT",
-    "siblingDirectory": "PortManager-Phase1",
-    "publicEntry": "port-manager.ps1",
-    "outputFormat": "single-json-document"
-  },
-  "prohibitedDirectAccess": [
-    "PortManager PowerShell internal PSM1 functions",
-    "PortManager SQLite database",
-    "PortManager runtime state files",
-    "browser Profile files",
-    "credentials and browser storage"
-  ],
+  "entry": {"runtime": "python", "path": "port_manager_service_adapter.py"},
+  "externalService": {"environmentVariable": "BSCLAW_PORT_MANAGER_ROOT", "siblingDirectory": "PortManager-Phase1", "publicEntry": "port-manager.ps1", "outputFormat": "single-json-document"},
   "actions": [
-    {
-      "id": "service-check",
-      "mode": "read-only",
-      "writeLevel": "pure-read",
-      "requiresHuiceResource": false,
-      "resourcePolicy": "none",
-      "timeoutSeconds": 90,
-      "inputSchema": {},
-      "resultCheck": {
-        "mode": "plugin",
-        "action": "service-check"
-      }
-    },
-    {
-      "id": "list-resources",
-      "mode": "read-only",
-      "writeLevel": "pure-read",
-      "requiresHuiceResource": false,
-      "resourcePolicy": "none",
-      "timeoutSeconds": 90,
-      "inputSchema": {},
-      "resultCheck": {
-        "mode": "plugin",
-        "action": "list-resources"
-      }
-    },
-    {
-      "id": "resource-detail",
-      "mode": "read-only",
-      "writeLevel": "pure-read",
-      "requiresHuiceResource": false,
-      "resourcePolicy": "none",
-      "timeoutSeconds": 90,
-      "inputSchema": {
-        "resourceId": "task.resource.resourceId"
-      },
-      "resultCheck": {
-        "mode": "plugin",
-        "action": "resource-detail"
-      }
-    },
-    {
-      "id": "check-resource",
-      "mode": "service-state-write",
-      "writeLevel": "service-state-write",
-      "requiresHuiceResource": false,
-      "resourcePolicy": "none",
-      "timeoutSeconds": 90,
-      "inputSchema": {
-        "resourceId": "task.resource.resourceId"
-      },
-      "resultCheck": {
-        "mode": "result-contract",
-        "requiredFields": ["resource"]
-      }
-    },
-    {
-      "id": "storage-plan",
-      "mode": "read-only",
-      "writeLevel": "pure-read",
-      "requiresHuiceResource": false,
-      "resourcePolicy": "none",
-      "timeoutSeconds": 180,
-      "inputSchema": {
-        "resourceId": "optional task.resource.resourceId"
-      },
-      "resultCheck": {
-        "mode": "result-contract",
-        "requiredFields": [
-          "executeMode",
-          "readOnly",
-          "totals"
-        ],
-        "expected": {
-          "executeMode": "dry-run",
-          "readOnly": true
-        }
-      }
-    }
+    {"id": "service-check", "mode": "read-only", "writeLevel": "pure-read", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90, "resultCheck": {"mode": "result-contract", "requiredFields": ["serviceId", "entryAvailable", "jsonContract", "resourceCount", "sqliteIntegrity", "schemaVersion", "checkedAt", "readOnly"]}},
+    {"id": "list-resources", "mode": "read-only", "writeLevel": "pure-read", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90, "resultCheck": {"mode": "plugin", "action": "list-resources"}},
+    {"id": "resource-detail", "mode": "read-only", "writeLevel": "pure-read", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90, "resultCheck": {"mode": "plugin", "action": "resource-detail"}},
+    {"id": "check-resource", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90, "resultCheck": {"mode": "result-contract", "requiredFields": ["resource", "connectionStatus", "pageStatus", "loginStatus", "apiStatus", "confidence", "checkedAt", "nextAction"]}},
+    {"id": "storage-plan", "mode": "read-only", "writeLevel": "pure-read", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 180, "resultCheck": {"mode": "result-contract", "requiredFields": ["executeMode", "readOnly", "totals"]}},
+    {"id": "register", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "edit", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "enable", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "disable", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "delete", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "check-all", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "resourceSelectionMode": "all", "resourceExecutionPolicy": "cross-resource-parallel", "concurrencyPolicy": "per-resource", "timeoutSeconds": 180},
+    {"id": "occupancy", "mode": "read-only", "writeLevel": "pure-read", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "login-check", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "cancel-login-check", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "open-resource", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 90},
+    {"id": "login-resource", "mode": "service-state-write", "writeLevel": "service-state-write", "requiresHuiceResource": false, "resourcePolicy": "none", "timeoutSeconds": 180}
   ],
-  "userInterface": {
-    "section": "local-services",
-    "summary": "管理本机端口资源、登录状态和可复用浏览器环境"
-  },
+  "userInterface": {"section": "local-services", "summary": "\u7ba1\u7406\u672c\u673a\u7aef\u53e3\u8d44\u6e90\u3001\u767b\u5f55\u72b6\u6001\u548c\u6d4f\u89c8\u5668\u73af\u5883\u3002"},
   "capabilities": [
-    {
-      "id": "service-check",
-      "action": "service-check",
-      "displayName": "检查端口服务",
-      "category": "检查",
-      "writeLevel": "pure-read",
-      "requiresResourceSelection": false,
-      "requiresLoginGate": false,
-      "requiresConfirmation": false,
-      "progressText": "正在检查端口服务",
-      "successResultView": "service-summary",
-      "failureNextAction": "检查端口管理安装和 Python 环境",
-      "retryable": true,
-      "cancellable": true,
-      "recoverable": true,
-      "dispatch": "scheduler"
-    },
-    {
-      "id": "list-resources",
-      "action": "list-resources",
-      "displayName": "查看端口资源",
-      "category": "查看",
-      "writeLevel": "pure-read",
-      "requiresResourceSelection": false,
-      "requiresLoginGate": false,
-      "requiresConfirmation": false,
-      "progressText": "正在读取端口资源",
-      "successResultView": "resource-list",
-      "failureNextAction": "检查端口管理服务后重试",
-      "retryable": true,
-      "cancellable": true,
-      "recoverable": true,
-      "dispatch": "scheduler"
-    },
-    {
-      "id": "resource-detail",
-      "action": "resource-detail",
-      "displayName": "查看资源详情",
-      "category": "查看",
-      "writeLevel": "pure-read",
-      "requiresResourceSelection": true,
-      "requiresLoginGate": false,
-      "requiresConfirmation": false,
-      "progressText": "正在读取资源详情",
-      "successResultView": "resource-detail",
-      "failureNextAction": "返回资源列表并重试",
-      "retryable": true,
-      "cancellable": true,
-      "recoverable": true,
-      "dispatch": "scheduler"
-    },
-    {
-      "id": "check-resource",
-      "action": "check-resource",
-      "displayName": "重新检查状态",
-      "category": "检查",
-      "writeLevel": "service-state-write",
-      "requiresResourceSelection": true,
-      "requiresLoginGate": false,
-      "requiresConfirmation": false,
-      "progressText": "正在检查连接、页面和登录状态",
-      "successResultView": "resource-detail",
-      "failureNextAction": "按提示完成登录或修复连接后重试",
-      "retryable": true,
-      "cancellable": true,
-      "recoverable": true,
-      "dispatch": "scheduler"
-    },
-    {
-      "id": "storage-plan",
-      "action": "storage-plan",
-      "displayName": "查看存储情况",
-      "category": "维护",
-      "writeLevel": "pure-read",
-      "requiresResourceSelection": true,
-      "requiresLoginGate": false,
-      "requiresConfirmation": false,
-      "progressText": "正在盘点存储，Profile 较大时可能需要几十秒",
-      "successResultView": "storage-summary",
-      "failureNextAction": "稍后重试或检查 Profile 路径",
-      "retryable": true,
-      "cancellable": true,
-      "recoverable": true,
-      "dispatch": "scheduler"
-    },
-    {
-      "id": "open-resource",
-      "action": "open-resource",
-      "displayName": "打开或复用资源",
-      "category": "打开",
-      "writeLevel": "service-state-write",
-      "requiresResourceSelection": true,
-      "requiresLoginGate": false,
-      "requiresConfirmation": true,
-      "confirmationText": "确认打开或复用该资源",
-      "progressText": "正在打开或复用资源",
-      "successResultView": "resource-detail",
-      "failureNextAction": "检查端口占用和浏览器状态后重试",
-      "retryable": true,
-      "cancellable": false,
-      "recoverable": true,
-      "dispatch": "public-command"
-    },
-    {
-      "id": "login-resource",
-      "action": "login-resource",
-      "displayName": "正式登录",
-      "category": "登录",
-      "writeLevel": "service-state-write",
-      "requiresResourceSelection": true,
-      "requiresLoginGate": false,
-      "requiresConfirmation": true,
-      "confirmationText": "确认进入正式登录流程",
-      "progressText": "正在进入正式登录流程",
-      "successResultView": "resource-detail",
-      "failureNextAction": "按提示完成登录或安全验证",
-      "retryable": true,
-      "cancellable": false,
-      "recoverable": true,
-      "dispatch": "public-command"
-    }
+    {"id": "service-check", "action": "service-check", "displayName": "\u68c0\u67e5\u7aef\u53e3\u670d\u52a1", "category": "\u68c0\u67e5", "writeLevel": "pure-read", "requiresResourceSelection": false, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "\u6b63\u5728\u68c0\u67e5\u7aef\u53e3\u670d\u52a1", "successResultView": "service-summary", "failureNextAction": "\u68c0\u67e5\u7aef\u53e3\u7ba1\u7406\u670d\u52a1\u548c Python \u73af\u5883", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "list-resources", "action": "list-resources", "displayName": "\u67e5\u770b\u7aef\u53e3\u8d44\u6e90", "category": "\u67e5\u770b", "writeLevel": "pure-read", "requiresResourceSelection": false, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "\u6b63\u5728\u8bfb\u53d6\u7aef\u53e3\u8d44\u6e90", "successResultView": "resource-list", "failureNextAction": "\u68c0\u67e5\u7aef\u53e3\u670d\u52a1\u540e\u91cd\u8bd5", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "resource-detail", "action": "resource-detail", "displayName": "\u67e5\u770b\u8d44\u6e90\u8be6\u60c5", "category": "\u67e5\u770b", "writeLevel": "pure-read", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "\u6b63\u5728\u8bfb\u53d6\u8d44\u6e90\u8be6\u60c5", "successResultView": "resource-detail", "failureNextAction": "\u8fd4\u56de\u8d44\u6e90\u5217\u8868\u5e76\u91cd\u8bd5", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "check-resource", "action": "check-resource", "displayName": "\u91cd\u65b0\u68c0\u67e5\u72b6\u6001", "category": "\u68c0\u67e5", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "\u6b63\u5728\u68c0\u67e5\u8fde\u63a5\u3001\u9875\u9762\u548c\u767b\u5f55\u72b6\u6001", "successResultView": "resource-detail", "failureNextAction": "\u6309\u63d0\u793a\u5b8c\u6210\u767b\u5f55\u6216\u4fee\u590d\u8fde\u63a5\u540e\u91cd\u8bd5", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "storage-plan", "action": "storage-plan", "displayName": "View storage plan", "category": "maintenance", "writeLevel": "pure-read", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "Generating the storage plan", "successResultView": "storage-summary", "failureNextAction": "Retry later or inspect the Profile path", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "register", "action": "register", "displayName": "Register resource", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": false, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm resource registration", "progressText": "Registering the resource", "successResultView": "resource-detail", "failureNextAction": "Check the input and retry", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "edit", "action": "edit", "displayName": "Edit resource", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm saving the resource changes", "progressText": "Saving resource changes", "successResultView": "resource-detail", "failureNextAction": "Check the changes and retry", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "enable", "action": "enable", "displayName": "Enable resource", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm enabling the resource", "progressText": "Enabling the resource", "successResultView": "resource-detail", "failureNextAction": "Check the resource definition and retry", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "disable", "action": "disable", "displayName": "Disable resource", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm disabling the resource", "progressText": "Disabling the resource", "successResultView": "resource-detail", "failureNextAction": "Check resource occupancy and retry", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "delete", "action": "delete", "displayName": "Delete resource", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm deleting the selected resource", "progressText": "Deleting the selected resource", "successResultView": "resource-list", "failureNextAction": "Return to the resource list, choose the resource again, and confirm deletion", "retryable": false, "cancellable": false, "recoverable": false, "dispatch": "scheduler"},
+    {"id": "check-all", "action": "check-all", "displayName": "Check all resources", "category": "check", "writeLevel": "service-state-write", "requiresResourceSelection": false, "resourceSelectionMode": "all", "resourceExecutionPolicy": "cross-resource-parallel", "concurrencyPolicy": "per-resource", "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "Checking all resources", "successResultView": "resource-list", "failureNextAction": "Review failed resources and retry", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "occupancy", "action": "occupancy", "displayName": "View occupancy", "category": "view", "writeLevel": "pure-read", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "Reading occupancy", "successResultView": "resource-detail", "failureNextAction": "Retry later", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "login-check", "action": "login-check", "displayName": "Check login state", "category": "check", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": false, "progressText": "Checking login state", "successResultView": "resource-detail", "failureNextAction": "Check the resource connection and retry", "retryable": true, "cancellable": true, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "cancel-login-check", "action": "cancel-login-check", "displayName": "Stop login check", "category": "maintenance", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm stopping the login check", "progressText": "Stopping the login check", "successResultView": "resource-detail", "failureNextAction": "Retry later", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "scheduler"},
+    {"id": "open-resource", "action": "open-resource", "displayName": "Open or reuse resource", "category": "open", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "Confirm opening or reusing the resource", "progressText": "Opening or reusing the resource", "successResultView": "resource-detail", "failureNextAction": "Check port occupancy and browser state", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "public-command"},
+    {"id": "login-resource", "action": "login-resource", "displayName": "\u6b63\u5f0f\u767b\u5f55", "category": "\u767b\u5f55", "writeLevel": "service-state-write", "requiresResourceSelection": true, "requiresLoginGate": false, "requiresConfirmation": true, "confirmationText": "\u786e\u8ba4\u8fdb\u5165\u6b63\u5f0f\u767b\u5f55\u6d41\u7a0b", "progressText": "\u6b63\u5728\u8fdb\u5165\u6b63\u5f0f\u767b\u5f55\u6d41\u7a0b", "successResultView": "resource-detail", "failureNextAction": "\u6309\u63d0\u793a\u5b8c\u6210\u767b\u5f55\u6216\u5b89\u5168\u9a8c\u8bc1", "retryable": true, "cancellable": false, "recoverable": true, "dispatch": "public-command"}
   ]
 }
